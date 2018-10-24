@@ -24,9 +24,9 @@ namespace NzbDrone.Core.Housekeeping.Housekeepers
             mapper.ExecuteNonQuery(@"DELETE FROM History
                                      WHERE Id IN (
                                      SELECT History.Id FROM History
-                                     LEFT OUTER JOIN Artists
-                                     ON History.ArtistId = Artists.Id
-                                     WHERE Artists.Id IS NULL)");
+                                     LEFT OUTER JOIN Artist
+                                     ON History.ArtistId = Artist.Id
+                                     WHERE Artist.Id IS NULL)");
         }
 
         private void CleanupOrphanedByAlbum()
@@ -36,9 +36,9 @@ namespace NzbDrone.Core.Housekeeping.Housekeepers
             mapper.ExecuteNonQuery(@"DELETE FROM History
                                      WHERE Id IN (
                                      SELECT History.Id FROM History
-                                     LEFT OUTER JOIN Albums
-                                     ON History.AlbumId = Albums.Id
-                                     WHERE Albums.Id IS NULL)");
+                                     LEFT OUTER JOIN ReleaseGroup
+                                     ON History.AlbumId = ReleaseGroup.Id
+                                     WHERE ReleaseGroup.Id IS NULL)");
         }
     }
 }

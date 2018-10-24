@@ -21,16 +21,19 @@ namespace NzbDrone.Core.Music
     {
         private readonly IAlbumService _albumService;
         private readonly IProvideAlbumInfo _albumInfo;
+        private readonly IArtistMetadataRepository _artistMetadataRepository;
         private readonly IRefreshTrackService _refreshTrackService;
         private readonly Logger _logger;
 
         public AddAlbumService(IAlbumService albumService,
-                                IProvideAlbumInfo albumInfo,
-                                IRefreshTrackService refreshTrackService,
-                                Logger logger)
+                               IProvideAlbumInfo albumInfo,
+                               IArtistMetadataRepository artistMetadataRepository,
+                               IRefreshTrackService refreshTrackService,
+                               Logger logger)
         {
             _albumService = albumService;
             _albumInfo = albumInfo;
+            _artistMetadataRepository = artistMetadataRepository;
             _refreshTrackService = refreshTrackService;
             _logger = logger;
         }
@@ -40,10 +43,11 @@ namespace NzbDrone.Core.Music
             Ensure.That(newAlbum, () => newAlbum).IsNotNull();
 
             var tuple = AddSkyhookData(newAlbum);
-            newAlbum = tuple.Item1;
-            _refreshTrackService.RefreshTrackInfo(newAlbum, tuple.Item2);
+            newAlbum = tuple.Item2;
             _logger.ProgressInfo("Adding Album {0}", newAlbum.Title);
-            _albumService.AddAlbum(newAlbum);
+            _artistMetadataRepository.UpsertMany(tuple.Item3);
+            _albumService.AddAlbum(newAlbum, tuple.Item1);
+            _refreshTrackService.RefreshTrackInfo(newAlbum);
 
             return newAlbum;
         }
@@ -56,40 +60,39 @@ namespace NzbDrone.Core.Music
             foreach (var newAlbum in newAlbums)
             {
                 var tuple = AddSkyhookData(newAlbum);
-                var album = tuple.Item1;
+                var album = tuple.Item2;
                 album.Added = added;
                 album.LastInfoSync = added;
-                album = _albumService.AddAlbum(album);
-                _refreshTrackService.RefreshTrackInfo(album,tuple.Item2);
                 _logger.ProgressInfo("Adding Album {0}", newAlbum.Title);
+                _artistMetadataRepository.UpsertMany(tuple.Item3);
+                album = _albumService.AddAlbum(album, tuple.Item1);
+                _refreshTrackService.RefreshTrackInfo(album);
                 albumsToAdd.Add(album);
             }
 
             return albumsToAdd;
         }
 
-        private Tuple<Album, List<Track>> AddSkyhookData(Album newAlbum)
+        private Tuple<string, Album, List<ArtistMetadata>> AddSkyhookData(Album newAlbum)
         {
-            Tuple<Album, List<Track>> tuple;
+            Tuple<string, Album, List<ArtistMetadata>> tuple;
 
             try
             {
-                tuple = _albumInfo.GetAlbumInfo(newAlbum.ForeignAlbumId, null);
+                tuple = _albumInfo.GetAlbumInfo(newAlbum.ForeignReleaseGroupId);
             }
             catch (AlbumNotFoundException)
             {
-                _logger.Error("LidarrId {1} was not found, it may have been removed from Lidarr.", newAlbum.ForeignAlbumId);
+                _logger.Error("LidarrId {1} was not found, it may have been removed from Lidarr.", newAlbum.ForeignReleaseGroupId);
 
                 throw new ValidationException(new List<ValidationFailure>
                                               {
-                                                  new ValidationFailure("MusicBrainzId", "An album with this ID was not found", newAlbum.ForeignAlbumId)
+                                                  new ValidationFailure("MusicBrainzId", "An album with this ID was not found", newAlbum.ForeignReleaseGroupId)
                                               });
             }
 
-            tuple.Item1.ArtistId = newAlbum.ArtistId;
-            tuple.Item1.Monitored = newAlbum.Monitored;
-            tuple.Item1.ProfileId = newAlbum.ProfileId;
-            tuple.Item1.Duration = tuple.Item2.Sum(track => track.Duration);
+            tuple.Item2.Monitored = newAlbum.Monitored;
+            tuple.Item2.ProfileId = newAlbum.ProfileId;
 
             return tuple;
         }

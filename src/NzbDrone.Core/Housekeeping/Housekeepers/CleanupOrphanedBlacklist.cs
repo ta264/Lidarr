@@ -18,9 +18,9 @@ namespace NzbDrone.Core.Housekeeping.Housekeepers
             mapper.ExecuteNonQuery(@"DELETE FROM Blacklist
                                      WHERE Id IN (
                                      SELECT Blacklist.Id FROM Blacklist
-                                     LEFT OUTER JOIN Artists
-                                     ON Blacklist.ArtistId = Artists.Id
-                                     WHERE Artists.Id IS NULL)");
+                                     LEFT OUTER JOIN Artist
+                                     ON Blacklist.ArtistId = Artist.Id
+                                     WHERE Artist.Id IS NULL)");
         }
     }
 }

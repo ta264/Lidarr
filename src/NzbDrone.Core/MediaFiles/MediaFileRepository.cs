@@ -29,19 +29,41 @@ namespace NzbDrone.Core.MediaFiles
 
         public List<TrackFile> GetFilesByArtist(int artistId)
         {
-            return Query.Where(c => c.ArtistId == artistId).ToList();
+            string query = string.Format("SELECT TrackFile.* " +
+                                         "FROM Artist " +
+                                         "JOIN ReleaseGroup ON ReleaseGroup.ArtistMetadataId = Artist.ArtistMetadataId " +
+                                         "JOIN Track ON Track.ReleaseId == ReleaseGroup.SelectedReleaseId " +
+                                         "JOIN TrackFile ON TrackFile.Id == Track.TrackFileId " +
+                                         "WHERE Artist.Id == {0}",
+                                         artistId);
+
+            return Query.QueryText(query).ToList();
         }
 
         public List<TrackFile> GetFilesByAlbum(int albumId)
         {
-            return Query.Where(c => c.AlbumId == albumId).ToList();
+            string query = string.Format("SELECT TrackFile.* " +
+                                         "FROM ReleaseGroup " +
+                                         "JOIN Track ON Track.ReleaseId == ReleaseGroup.SelectedReleaseId " +
+                                         "JOIN TrackFile ON TrackFile.Id == Track.TrackFileId " +
+                                         "WHERE ReleaseGroup.Id == {0}",
+                                         albumId);
+
+            return Query.QueryText(query).ToList();
         }
         
         public List<TrackFile> GetFilesWithRelativePath(int artistId, string relativePath)
         {
-            return Query.Where(c => c.ArtistId == artistId)
-                .AndWhere(c => c.RelativePath == relativePath)
-                .ToList();
+            string query = string.Format("SELECT TrackFile.* " +
+                                         "FROM Artist " +
+                                         "JOIN ReleaseGroup ON ReleaseGroup.ArtistMetadataId = Artist.ArtistMetadataId " +
+                                         "JOIN Track ON Track.ReleaseId == ReleaseGroup.SelectedReleaseId " +
+                                         "JOIN TrackFile ON TrackFile.Id == Track.TrackFileId " +
+                                         "WHERE Artist.Id == {0} " +
+                                         "AND TrackFile.RelativePath == '{1}'",
+                                         artistId, relativePath);
+
+            return Query.QueryText(query).ToList();
         }
 
     }

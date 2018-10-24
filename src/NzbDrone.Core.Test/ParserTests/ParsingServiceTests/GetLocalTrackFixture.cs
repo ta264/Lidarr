@@ -33,18 +33,18 @@ namespace NzbDrone.Core.Test.ParserTests.ParsingServiceTests
             _fakeAlbum = Builder<Album>
                 .CreateNew()
                 .With(e => e.ArtistId = _fakeArtist.Id)
-                .With(e => e.Releases = new List<AlbumRelease>
+                .With(e => e.Releases = new List<Release>
                 {
-                    new AlbumRelease
+                    new Release
                     {
-                        Id = "5ecd552b-e54b-4c37-b62c-9d6234834bad"
+                        ForeignReleaseId = "5ecd552b-e54b-4c37-b62c-9d6234834bad"
                     }
                 })
                 .Build();
 
             _fakeTrack = Builder<Track>
                 .CreateNew()
-                .With(e => e.ArtistId = _fakeArtist.Id)
+                .With(e => e.Artist = _fakeArtist)
                 .With(e => e.AlbumId = _fakeAlbum.Id)
                 .With(e => e.Album = null)
                 .Build();
@@ -61,7 +61,7 @@ namespace NzbDrone.Core.Test.ParserTests.ParsingServiceTests
                 .Returns(_fakeAlbum);
 
             Mocker.GetMock<IAlbumService>()
-                .Setup(s => s.FindAlbumByRelease(_fakeAlbum.Releases.First().Id))
+                .Setup(s => s.FindAlbumByRelease(_fakeAlbum.Releases.Value.First().ForeignReleaseId))
                 .Returns(_fakeAlbum);
 
             Mocker.GetMock<ITrackService>()
@@ -78,7 +78,7 @@ namespace NzbDrone.Core.Test.ParserTests.ParsingServiceTests
         private void HasReleaseMbIdNoTitle()
         {
             _parsedTrackInfo.AlbumTitle = "";
-            _parsedTrackInfo.ReleaseMBId = _fakeAlbum.Releases.First().Id;
+            _parsedTrackInfo.ReleaseMBId = _fakeAlbum.Releases.Value.First().ForeignReleaseId;
         }
 
         private void HasNoReleaseIdOrTitle()

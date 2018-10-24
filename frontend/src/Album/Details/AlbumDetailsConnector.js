@@ -42,6 +42,7 @@ function createMapStateToProps() {
       const isPopulated = tracks.isPopulated && trackFiles.isPopulated;
       const tracksError = tracks.error;
       const trackFilesError = trackFiles.error;
+      const currentReleaseId = album.currentRelease.id;
 
       return {
         ...album,
@@ -52,6 +53,7 @@ function createMapStateToProps() {
         isPopulated,
         tracksError,
         trackFilesError,
+        currentReleaseId,
         previousAlbum,
         nextAlbum
       };
@@ -76,13 +78,13 @@ class AlbumDetailsConnector extends Component {
 
   componentDidUpdate(prevProps) {
     const {
-      id
+      currentReleaseId
     } = this.props;
 
     // If the id has changed we need to clear the tracks/track
     // files and fetch from the server.
 
-    if (prevProps.id !== id) {
+    if (prevProps.currentReleaseId !== currentReleaseId) {
       this.unpopulate();
       this.populate();
     }
@@ -133,6 +135,7 @@ class AlbumDetailsConnector extends Component {
 
 AlbumDetailsConnector.propTypes = {
   id: PropTypes.number,
+  currentReleaseId: PropTypes.string.isRequired,
   isAlbumFetching: PropTypes.bool,
   isAlbumPopulated: PropTypes.bool,
   foreignAlbumId: PropTypes.string.isRequired,

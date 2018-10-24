@@ -2,6 +2,7 @@ using System.Linq;
 using FluentAssertions;
 using NLog;
 using NUnit.Framework;
+using FizzWare.NBuilder;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Music;
 using NzbDrone.Core.Test.Framework;
@@ -12,12 +13,15 @@ namespace NzbDrone.Core.Test.MusicTests.TitleMatchingTests
     [TestFixture]
     public class TitleMatchingFixture : DbTest<TrackService, Track>
     {
+        private AlbumRepository _albumRepository;
         private TrackRepository _trackRepository;
         private TrackService _trackService;
+        private Album _album;
 
         [SetUp]
         public void Setup()
         {
+            _albumRepository = Mocker.Resolve<AlbumRepository>();
             _trackRepository = Mocker.Resolve<TrackRepository>();
             _trackService =
                 new TrackService(_trackRepository, Mocker.Resolve<ConfigService>(), Mocker.Resolve<Logger>());
@@ -43,18 +47,27 @@ namespace NzbDrone.Core.Test.MusicTests.TitleMatchingTests
                         {
                             Title = trackNames[i],
                             ForeignTrackId = (i+1).ToString(),
-                            AlbumId = 4321,
+                            ReleaseId = 1111,
                             AbsoluteTrackNumber = i+1,
                             MediumNumber = 1,
                             TrackFileId = i+1
                         });
             }
+
+            _album = Builder<Album>
+                .CreateNew()
+                .With(e => e.Id = 0)
+                .With(e => e.SelectedReleaseId = 1111)
+                .Build();
+
+            _albumRepository.Insert(_album);
+
         }
 
         [Test]
         public void should_find_track_in_db_by_tracktitle_longer_then_releasetitle()
         {
-            var track = _trackService.FindTrackByTitle(1234, 4321, 1, 1, "Courage with some bla");
+            var track = _trackService.FindTrackByTitle(1234, _album.Id, 1, 1, "Courage with some bla");
 
             track.Should().NotBeNull();
             track.Title.Should().Be(_trackRepository.GetTracksByFileId(1).First().Title);
@@ -63,7 +76,7 @@ namespace NzbDrone.Core.Test.MusicTests.TitleMatchingTests
         [Test]
         public void should_find_track_in_db_by_tracktitle_shorter_then_releasetitle()
         {
-            var track = _trackService.FindTrackByTitle(1234, 4321, 1, 3, "and Bone");
+            var track = _trackService.FindTrackByTitle(1234, _album.Id, 1, 3, "and Bone");
 
             track.Should().NotBeNull();
             track.Title.Should().Be(_trackRepository.GetTracksByFileId(3).First().Title);
@@ -72,7 +85,7 @@ namespace NzbDrone.Core.Test.MusicTests.TitleMatchingTests
         [Test]
         public void should_not_find_track_in_db_by_wrong_title()
         {
-            var track = _trackService.FindTrackByTitle(1234, 4321, 1, 1, "Not a track");
+            var track = _trackService.FindTrackByTitle(1234, _album.Id, 1, 1, "Not a track");
 
             track.Should().BeNull();
         }
@@ -83,7 +96,7 @@ namespace NzbDrone.Core.Test.MusicTests.TitleMatchingTests
         [TestCase("Sticks and Stones (live)", 6)]
         public void should_find_track_in_db_by_inexact_title(string title, int trackNumber)
         {
-            var track = _trackService.FindTrackByTitleInexact(1234, 4321, 1, trackNumber, title);
+            var track = _trackService.FindTrackByTitleInexact(1234, _album.Id, 1, trackNumber, title);
 
             track.Should().NotBeNull();
             track.Title.Should().Be(_trackRepository.GetTracksByFileId(trackNumber).First().Title);
@@ -93,11 +106,9 @@ namespace NzbDrone.Core.Test.MusicTests.TitleMatchingTests
         [TestCase("Stones and Sticks", 6)]
         public void should_not_find_track_in_db_by_different_inexact_title(string title, int trackId)
         {
-            var track = _trackService.FindTrackByTitleInexact(1234, 4321, 1, trackId, title);
+            var track = _trackService.FindTrackByTitleInexact(1234, _album.Id, 1, trackId, title);
 
             track.Should().BeNull();
         }
-
-
     }
 }

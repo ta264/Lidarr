@@ -16,8 +16,8 @@ namespace NzbDrone.Core.Music
     {
         List<Album> GetAlbums(int artistId);
         Album FindByName(string cleanTitle);
-        Album FindByTitle(int artistId, string title);
-        Album FindByTitleInexact(int artistId, string title);
+        Album FindByTitle(int artistMetadataId, string title);
+        Album FindByTitleInexact(int artistMetadataId, string title);
         Album FindByArtistAndName(string artistName, string cleanTitle);
         Album FindById(string spotifyId);
         PagingSpec<Album> AlbumsWithoutFiles(PagingSpec<Album> pagingSpec);
@@ -27,6 +27,7 @@ namespace NzbDrone.Core.Music
         void SetMonitoredFlat(Album album, bool monitored);
         void SetMonitored(IEnumerable<int> ids, bool monitored);
         Album FindAlbumByRelease(string releaseId);
+        Album FindAlbumByTrack(int trackId);
         List<Album> GetArtistAlbumsWithFiles(Artist artist);
     }
 
@@ -44,12 +45,13 @@ namespace NzbDrone.Core.Music
 
         public List<Album> GetAlbums(int artistId)
         {
-            return Query.Where(s => s.ArtistId == artistId).ToList();
+            return Query.Join<Album, Artist>(JoinType.Inner, album => album.Artist, (l, r) => l.ArtistMetadataId == r.ArtistMetadataId)
+                .Where<Artist>(a => a.Id == artistId).ToList();
         }
 
-        public Album FindById(string foreignAlbumId)
+        public Album FindById(string foreignReleaseGroupId)
         {
-            return Query.SingleOrDefault(s => s.ForeignAlbumId == foreignAlbumId);
+            return Query.Where(s => s.ForeignReleaseGroupId == foreignReleaseGroupId).SingleOrDefault();
         }
 
         public PagingSpec<Album> AlbumsWithoutFiles(PagingSpec<Album> pagingSpec)
@@ -75,15 +77,15 @@ namespace NzbDrone.Core.Music
 
         public List<Album> AlbumsBetweenDates(DateTime startDate, DateTime endDate, bool includeUnmonitored)
         {
-            var query = Query.Join<Album, Artist>(JoinType.Inner, e => e.Artist, (e, s) => e.ArtistId == s.Id)
-                             .Where<Album>(e => e.ReleaseDate >= startDate)
-                             .AndWhere(e => e.ReleaseDate <= endDate);
+            var query = Query.Join<Album, Artist>(JoinType.Inner, rg => rg.Artist, (rg, a) => rg.ArtistMetadataId == a.ArtistMetadataId)
+                             .Where<Album>(rg => rg.ReleaseDate >= startDate)
+                             .AndWhere(rg => rg.ReleaseDate <= endDate);
 
 
             if (!includeUnmonitored)
             {
                 query.AndWhere(e => e.Monitored)
-                     .AndWhere(e => e.Artist.Monitored);
+                     .AndWhere(e => e.Artist.Value.Monitored);
             }
 
             return query.ToList();
@@ -91,16 +93,16 @@ namespace NzbDrone.Core.Music
 
         public List<Album> ArtistAlbumsBetweenDates(Artist artist, DateTime startDate, DateTime endDate, bool includeUnmonitored)
         {
-            var query = Query.Join<Album, Artist>(JoinType.Inner, e => e.Artist, (e, s) => e.ArtistId == s.Id)
+            var query = Query.Join<Album, Artist>(JoinType.Inner, e => e.Artist, (e, s) => e.ArtistMetadataId == s.ArtistMetadataId)
                 .Where<Album>(e => e.ReleaseDate >= startDate)
                 .AndWhere(e => e.ReleaseDate <= endDate)
-                .AndWhere(e => e.ArtistId == artist.Id);
+                .AndWhere(e => e.ArtistMetadataId == artist.ArtistMetadataId);
 
 
             if (!includeUnmonitored)
             {
                 query.AndWhere(e => e.Monitored)
-                    .AndWhere(e => e.Artist.Monitored);
+                    .AndWhere(e => e.Artist.Value.Monitored);
             }
 
             return query.ToList();
@@ -109,103 +111,121 @@ namespace NzbDrone.Core.Music
         private QueryBuilder<Album> GetMissingAlbumsQuery(PagingSpec<Album> pagingSpec, DateTime currentTime)
         {
             string sortKey;
-            string monitored = "(Albums.[Monitored] = 0) OR (Artists.[Monitored] = 0)";
+            string monitored = "(ReleaseGroup.[Monitored] = 0) OR (Artist.[Monitored] = 0)";
 
             if (pagingSpec.FilterExpressions.FirstOrDefault().ToString().Contains("True"))
             {
-                monitored = "(Albums.[Monitored] = 1) AND (Artists.[Monitored] = 1)";
+                monitored = "(ReleaseGroup.[Monitored] = 1) AND (Artist.[Monitored] = 1)";
             }
 
             if (pagingSpec.SortKey == "releaseDate")
             {
-                sortKey = "Albums." + pagingSpec.SortKey;
+                sortKey = "ReleaseGroup." + pagingSpec.SortKey;
             }
             else if (pagingSpec.SortKey == "artist.sortName")
             {
-                sortKey = "Artists." + pagingSpec.SortKey.Split('.').Last();
+                sortKey = "Artist." + pagingSpec.SortKey.Split('.').Last();
             }
             else if (pagingSpec.SortKey == "albumTitle")
             {
-                sortKey = "Albums.title";
+                sortKey = "ReleaseGroup.title";
             }
             else
             {
-                sortKey = "Albums.releaseDate";
+                sortKey = "ReleaseGroup.releaseDate";
             }
 
-            string query = string.Format("SELECT Albums.* FROM (SELECT Tracks.AlbumId, COUNT(*) AS TotalTrackCount," + "" +
-                "SUM(CASE WHEN TrackFileId > 0 THEN 1 ELSE 0 END) AS AvailableTrackCount FROM Tracks GROUP BY Tracks.ArtistId, Tracks.AlbumId) as Tracks" +
-                 " LEFT OUTER JOIN Albums ON Tracks.AlbumId == Albums.Id" +
-                 " LEFT OUTER JOIN Artists ON Albums.ArtistId == Artists.Id" +
-                 " WHERE Tracks.TotalTrackCount != Tracks.AvailableTrackCount AND ({0}) AND {1}" +
-                 " GROUP BY Tracks.AlbumId" +
-                 " ORDER BY {2} {3} LIMIT {4} OFFSET {5}",
-                 monitored, BuildReleaseDateCutoffWhereClause(currentTime), sortKey, pagingSpec.ToSortDirection(), pagingSpec.PageSize, pagingSpec.PagingOffset());
+            string query = string.Format("SELECT ReleaseGroup.* " +
+                                         "FROM ReleaseGroup " +
+                                         "JOIN Artist ON ReleaseGroup.ArtistMetadataId = Artist.ArtistMetadataId " +
+                                         "JOIN Track ON Track.ReleaseId == ReleaseGroup.SelectedReleaseId " +
+                                         "LEFT OUTER JOIN TrackFile ON TrackFile.Id == Track.TrackFileId " +
+                                         "WHERE TrackFile.Id IS NULL " +
+                                         "AND ({0}) AND {1} " +
+                                         "GROUP BY ReleaseGroup.Id " +
+                                         " ORDER BY {2} {3} LIMIT {4} OFFSET {5}",
+                                         monitored,
+                                         BuildReleaseDateCutoffWhereClause(currentTime),
+                                         sortKey,
+                                         pagingSpec.ToSortDirection(),
+                                         pagingSpec.PageSize,
+                                         pagingSpec.PagingOffset());
 
             return Query.QueryText(query);
         }
 
         private int GetMissingAlbumsQueryCount(PagingSpec<Album> pagingSpec, DateTime currentTime)
         {
-            var monitored = "(Albums.[Monitored] = 0) OR (Artists.[Monitored] = 0)";
+            var monitored = "(ReleaseGroup.[Monitored] = 0) OR (Artist.[Monitored] = 0)";
 
             if (pagingSpec.FilterExpressions.FirstOrDefault().ToString().Contains("True"))
             {
-                monitored = "(Albums.[Monitored] = 1) AND (Artists.[Monitored] = 1)";
+                monitored = "(ReleaseGroup.[Monitored] = 1) AND (Artist.[Monitored] = 1)";
             }
 
-            string query = string.Format("SELECT Albums.* FROM (SELECT Tracks.AlbumId, COUNT(*) AS TotalTrackCount," +
-                " SUM(CASE WHEN TrackFileId > 0 THEN 1 ELSE 0 END) AS AvailableTrackCount FROM Tracks GROUP BY Tracks.ArtistId, Tracks.AlbumId) as Tracks" +
-                " LEFT OUTER JOIN Albums ON Tracks.AlbumId == Albums.Id" +
-                " LEFT OUTER JOIN Artists ON Albums.ArtistId == Artists.Id" +
-                " WHERE Tracks.TotalTrackCount != Tracks.AvailableTrackCount AND ({0}) AND {1}" +
-                " GROUP BY Tracks.AlbumId",
-                monitored, BuildReleaseDateCutoffWhereClause(currentTime));
+            string query = string.Format("SELECT ReleaseGroup.* " +
+                                         "FROM ReleaseGroup " +
+                                         "JOIN Artist ON ReleaseGroup.ArtistMetadataId = Artist.ArtistMetadataId " +
+                                         "JOIN Track ON Track.ReleaseId == ReleaseGroup.SelectedReleaseId " +
+                                         "LEFT OUTER JOIN TrackFile ON TrackFile.Id == Track.TrackFileId " +
+                                         "WHERE TrackFile.Id IS NULL " +
+                                         "AND ({0}) AND {1} " +
+                                         "GROUP BY ReleaseGroup.Id ",
+                                         monitored,
+                                         BuildReleaseDateCutoffWhereClause(currentTime));
 
             return Query.QueryText(query).Count();
         }
 
         private string BuildReleaseDateCutoffWhereClause(DateTime currentTime)
         {
-            return string.Format("datetime(strftime('%s', Albums.[ReleaseDate]),  'unixepoch') <= '{0}'",
+            return string.Format("datetime(strftime('%s', ReleaseGroup.[ReleaseDate]),  'unixepoch') <= '{0}'",
                                  currentTime.ToString("yyyy-MM-dd HH:mm:ss"));
         }
 
         private QueryBuilder<Album> GetCutOffAlbumsQuery(PagingSpec<Album> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff, List<LanguagesBelowCutoff> languagesBelowCutoff)
         {
             string sortKey;
-            string monitored = "(Albums.[Monitored] = 0) OR (Artists.[Monitored] = 0)";
+            string monitored = "(ReleaseGroup.[Monitored] = 0) OR (Artist.[Monitored] = 0)";
 
             if (pagingSpec.FilterExpressions.FirstOrDefault().ToString().Contains("True"))
             {
-                monitored = "(Albums.[Monitored] = 1) AND (Artists.[Monitored] = 1)";
+                monitored = "(ReleaseGroup.[Monitored] = 1) AND (Artist.[Monitored] = 1)";
             }
 
             if (pagingSpec.SortKey == "releaseDate")
             {
-                sortKey = "Albums." + pagingSpec.SortKey;
+                sortKey = "ReleaseGroup." + pagingSpec.SortKey;
             }
             else if (pagingSpec.SortKey == "artist.sortName")
             {
-                sortKey = "Artists." + pagingSpec.SortKey.Split('.').Last();
+                sortKey = "Artist." + pagingSpec.SortKey.Split('.').Last();
             }
             else if (pagingSpec.SortKey == "albumTitle")
             {
-                sortKey = "Albums.title";
+                sortKey = "ReleaseGroup.title";
             }
             else
             {
-                sortKey = "Albums.releaseDate";
+                sortKey = "ReleaseGroup.releaseDate";
             }
 
-            string query = string.Format("SELECT Albums.* FROM(SELECT TrackFiles.AlbumId, TrackFiles.Language, COUNT(*) AS FileCount, " +
-                " MIN(Quality) AS MinQuality FROM TrackFiles GROUP BY TrackFiles.ArtistId, TrackFiles.AlbumId) as TrackFiles" +
-                " LEFT OUTER JOIN Albums ON TrackFiles.AlbumId == Albums.Id" +
-                " LEFT OUTER JOIN Artists ON Albums.ArtistId == Artists.Id" +
-                " WHERE ({0}) AND ({1} OR {2})" +
-                " GROUP BY TrackFiles.AlbumId" +
-                " ORDER BY {3} {4} LIMIT {5} OFFSET {6}",
-                monitored, BuildQualityCutoffWhereClause(qualitiesBelowCutoff), BuildLanguageCutoffWhereClause(languagesBelowCutoff), sortKey, pagingSpec.ToSortDirection(), pagingSpec.PageSize, pagingSpec.PagingOffset());
+            string query = string.Format("SELECT ReleaseGroup.* " +
+                                         "FROM ReleaseGroup " +
+                                         "JOIN Artist on ReleaseGroup.ArtistMetadataId == Artist.ArtistMetadataId " +
+                                         "JOIN Track ON Track.ReleaseId == ReleaseGroup.SelectedReleaseId " +
+                                         "JOIN TrackFile ON TrackFile.Id == Track.TrackFileId " +
+                                         "WHERE {0} " +
+                                         "GROUP BY ReleaseGroup.Id " +
+                                         "HAVING ({1} OR {2}) " +
+                                         "ORDER BY {3} {4} LIMIT {5} OFFSET {6}",
+                                         monitored,
+                                         BuildQualityCutoffWhereClause(qualitiesBelowCutoff),
+                                         BuildLanguageCutoffWhereClause(languagesBelowCutoff),
+                                         sortKey,
+                                         pagingSpec.ToSortDirection(),
+                                         pagingSpec.PageSize,
+                                         pagingSpec.PagingOffset());
 
             return Query.QueryText(query);
 
@@ -213,20 +233,24 @@ namespace NzbDrone.Core.Music
 
         private int GetCutOffAlbumsQueryCount(PagingSpec<Album> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff, List<LanguagesBelowCutoff> languagesBelowCutoff)
         {
-            var monitored = "(Albums.[Monitored] = 0) OR (Artists.[Monitored] = 0)";
+            var monitored = "(ReleaseGroup.[Monitored] = 0) OR (Artist.[Monitored] = 0)";
 
             if (pagingSpec.FilterExpressions.FirstOrDefault().ToString().Contains("True"))
             {
-                monitored = "(Albums.[Monitored] = 1) AND (Artists.[Monitored] = 1)";
+                monitored = "(ReleaseGroup.[Monitored] = 1) AND (Artist.[Monitored] = 1)";
             }
 
-            string query = string.Format("SELECT Albums.* FROM (SELECT TrackFiles.AlbumId, TrackFiles.Language, COUNT(*) AS FileCount," +
-                " MIN(Quality) AS MinQuality FROM TrackFiles GROUP BY TrackFiles.ArtistId, TrackFiles.AlbumId) as TrackFiles" +
-                " LEFT OUTER JOIN Albums ON TrackFiles.AlbumId == Albums.Id" +
-                " LEFT OUTER JOIN Artists ON Albums.ArtistId == Artists.Id" +
-                " WHERE ({0}) AND ({1} OR {2})" +
-                " GROUP BY TrackFiles.AlbumId",
-                monitored, BuildQualityCutoffWhereClause(qualitiesBelowCutoff), BuildLanguageCutoffWhereClause(languagesBelowCutoff));
+            string query = string.Format("SELECT ReleaseGroup.* " +
+                                         "FROM ReleaseGroup " +
+                                         "JOIN Artist on ReleaseGroup.ArtistMetadataId == Artist.ArtistMetadataId " +
+                                         "JOIN Track ON Track.ReleaseId == ReleaseGroup.SelectedReleaseId " +
+                                         "JOIN TrackFile ON TrackFile.Id == Track.TrackFileId " +
+                                         "WHERE {0} " +
+                                         "GROUP BY ReleaseGroup.Id " +
+                                         "HAVING ({1} OR {2}) ",
+                                         monitored,
+                                         BuildQualityCutoffWhereClause(qualitiesBelowCutoff),
+                                         BuildLanguageCutoffWhereClause(languagesBelowCutoff));
 
             return Query.QueryText(query).Count();
         }
@@ -240,7 +264,7 @@ namespace NzbDrone.Core.Music
             {
                 foreach (var belowCutoff in language.LanguageIds)
                 {
-                    clauses.Add(string.Format("(Artists.[LanguageProfileId] = {0} AND TrackFiles.[Language] = {1})", language.ProfileId, belowCutoff));
+                    clauses.Add(string.Format("(Artist.[LanguageProfileId] = {0} AND TrackFile.[Language] = {1})", language.ProfileId, belowCutoff));
                 }
             }
 
@@ -255,7 +279,7 @@ namespace NzbDrone.Core.Music
             {
                 foreach (var belowCutoff in profile.QualityIds)
                 {
-                    clauses.Add(string.Format("(Artists.[ProfileId] = {0} AND TrackFiles.MinQuality LIKE '%_quality_: {1},%')", profile.ProfileId, belowCutoff));
+                    clauses.Add(string.Format("(Artist.[ProfileId] = {0} AND MIN(TrackFile.Quality) LIKE '%_quality_: {1},%')", profile.ProfileId, belowCutoff));
                 }
             }
 
@@ -274,7 +298,7 @@ namespace NzbDrone.Core.Music
 
             mapper.AddParameter("monitored", monitored);
 
-            var sql = "UPDATE Albums " +
+            var sql = "UPDATE ReleaseGroup " +
                       "SET Monitored = @monitored " +
                       $"WHERE Id IN ({string.Join(", ", ids)})";
 
@@ -285,10 +309,10 @@ namespace NzbDrone.Core.Music
         {
             cleanTitle = cleanTitle.ToLowerInvariant();
 
-            return Query.SingleOrDefault(s => s.CleanTitle == cleanTitle);
+            return Query.Where(s => s.CleanTitle == cleanTitle).SingleOrDefault();
         }
 
-        public Album FindByTitle(int artistId, string title)
+        public Album FindByTitle(int artistMetadataId, string title)
         {
             var cleanTitle = Parser.Parser.CleanArtistName(title);
             
@@ -296,11 +320,11 @@ namespace NzbDrone.Core.Music
                 cleanTitle = title;
             
             return Query.Where(s => s.CleanTitle == cleanTitle || s.Title == title)
-                        .AndWhere(s => s.ArtistId == artistId)
+                        .AndWhere(s => s.ArtistMetadataId == artistMetadataId)
                         .FirstOrDefault();
         }
 
-        public Album FindByTitleInexact(int artistId, string title)
+        public Album FindByTitleInexact(int artistMetadataId, string title)
         {
             double fuzzThreshold = 0.7;
             double fuzzGap = 0.4;
@@ -309,7 +333,7 @@ namespace NzbDrone.Core.Music
             if (string.IsNullOrEmpty(cleanTitle))
                 cleanTitle = title;
 
-            var sortedAlbums = Query.Where(s => s.ArtistId == artistId)
+            var sortedAlbums = Query.Where(s => s.ArtistMetadataId == artistMetadataId)
                 .Select(s => new
                     {
                         MatchProb = s.CleanTitle.FuzzyMatch(cleanTitle),
@@ -338,28 +362,43 @@ namespace NzbDrone.Core.Music
             var cleanArtistName = Parser.Parser.CleanArtistName(artistName);
             cleanTitle = cleanTitle.ToLowerInvariant();
 
-            return Query.Join<Album, Artist>(JoinType.Inner, album => album.Artist, (album, artist) => album.ArtistId == artist.Id)
+            return Query.Join<Album, Artist>(JoinType.Inner, rg => rg.Artist, (rg, artist) => rg.ArtistMetadataId == artist.ArtistMetadataId)
                         .Where<Artist>(artist => artist.CleanName == cleanArtistName)
-                        .SingleOrDefault(album => album.CleanTitle == cleanTitle);
+                        .SingleOrDefault(rg => rg.CleanTitle == cleanTitle);
         }
 
         public Album FindAlbumByRelease(string releaseId)
         {
-            return Query.FirstOrDefault(e => e.Releases.Any(r => r.Id == releaseId));
+            string query = string.Format("SELECT ReleaseGroup.* " +
+                                         "FROM ReleaseGroup " +
+                                         "JOIN Release ON Release.ReleaseGroupId = ReleaseGroup.Id " +
+                                         "WHERE Release.ForeignReleaseId = '{0}'",
+                                         releaseId);
+            return Query.QueryText(query).FirstOrDefault();
+        }
+
+        public Album FindAlbumByTrack(int trackId)
+        {
+            string query = string.Format("SELECT ReleaseGroup.* " +
+                                         "FROM ReleaseGroup " +
+                                         "JOIN Release ON Release.ReleaseGroupId = ReleaseGroup.Id " +
+                                         "JOIN Track ON Track.ReleaseId = Release.Id " +
+                                         "WHERE Track.Id = {0}",
+                                         trackId);
+            return Query.QueryText(query).FirstOrDefault();
         }
 
         public List<Album> GetArtistAlbumsWithFiles(Artist artist)
         {
-            string query = string.Format("SELECT Albums.* FROM (SELECT Tracks.AlbumId, COUNT(*) AS TotalTrackCount," + "" +
-                                         "SUM(CASE WHEN TrackFileId > 0 THEN 1 ELSE 0 END) AS AvailableTrackCount FROM Tracks GROUP BY Tracks.ArtistId, Tracks.AlbumId) as Tracks" +
-                                         " LEFT OUTER JOIN Albums ON Tracks.AlbumId == Albums.Id" +
-                                         " LEFT OUTER JOIN Artists ON Albums.ArtistId == Artists.Id" +
-                                         " WHERE Tracks.AvailableTrackCount > 0" +
-                                         " AND Albums.ArtistId=" + artist.Id + 
-                                         " GROUP BY Tracks.AlbumId");
+            string query = string.Format("SELECT ReleaseGroup.* " +
+                                         "FROM ReleaseGroup " +
+                                         "JOIN Track ON Track.ReleaseId == ReleaseGroup.SelectedReleaseId " +
+                                         "JOIN TrackFile ON TrackFile.Id == Track.TrackFileId " +
+                                         "WHERE ReleaseGroup.ArtistMetadataId == {0} " +
+                                         "GROUP BY ReleaseGroup.Id ",
+                                         artist.ArtistMetadataId);
 
-            return Query.QueryText(query);
-
+            return Query.QueryText(query).ToList();
         }
     }
 }

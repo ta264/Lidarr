@@ -39,7 +39,7 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
         [Test]
         public void should_only_include_monitored_albums()
         {
-            _artist.Albums = new List<Album>
+            _artist.ReleaseGroups = new List<Album>
             {
                 new Album {Monitored = false},
                 new Album {Monitored = true}
@@ -49,7 +49,7 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
 
             Mocker.GetMock<ISearchForNzb>()
                 .Verify(v => v.ArtistSearch(_artist.Id, false, true, false),
-                    Times.Exactly(_artist.Albums.Count(s => s.Monitored)));
+                    Times.Exactly(_artist.ReleaseGroups.Value.Count(s => s.Monitored)));
         }
     }
 }

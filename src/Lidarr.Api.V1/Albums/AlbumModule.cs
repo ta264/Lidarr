@@ -68,7 +68,7 @@ namespace Lidarr.Api.V1.Albums
 
             _albumService.UpdateAlbum(model);
 
-            BroadcastResourceChange(ModelAction.Updated, albumResource);
+            BroadcastResourceChange(ModelAction.Updated, model.Id);
         }
 
         private Response SetAlbumsMonitored()

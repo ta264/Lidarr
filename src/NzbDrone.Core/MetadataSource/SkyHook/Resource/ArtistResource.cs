@@ -8,7 +8,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook.Resource
     public class ArtistResource
     {
         public ArtistResource() {
-            Albums = new List<AlbumResource>();
+            ReleaseGroups = new List<ReleaseGroupResource>();
         }
 
         public List<string> Genres { get; set; }
@@ -20,7 +20,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook.Resource
         public List<ImageResource> Images { get; set; }
         public List<LinkResource> Links { get; set; }
         public string ArtistName { get; set; }
-        public List<AlbumResource> Albums { get; set; }
+        public List<ReleaseGroupResource> ReleaseGroups { get; set; }
         public string Status { get; set; }
         public RatingResource Rating { get; set; }
 

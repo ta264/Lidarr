@@ -144,7 +144,7 @@ namespace NzbDrone.Core.Parser
             if (albumInfo == null)
             {
                 // TODO: Search by Title and Year instead of just Title when matching
-                albumInfo = _albumService.FindByTitle(artist.Id, parsedAlbumInfo.AlbumTitle);
+                albumInfo = _albumService.FindByTitle(artist.ArtistMetadataId, parsedAlbumInfo.AlbumTitle);
             }
 
             if (albumInfo != null)
@@ -287,13 +287,13 @@ namespace NzbDrone.Core.Parser
 
             if (album == null)
             {
-                album = _albumService.FindByTitle(artist.Id, cleanAlbumTitle);
+                album = _albumService.FindByTitle(artist.ArtistMetadataId, cleanAlbumTitle);
             }
 
             if (album == null)
             {
                 _logger.Debug("Trying inexact album match for {0}", parsedTrackInfo);
-                album = _albumService.FindByTitleInexact(artist.Id, cleanAlbumTitle);
+                album = _albumService.FindByTitleInexact(artist.ArtistMetadataId, cleanAlbumTitle);
             }
 
             if (album == null)

@@ -37,11 +37,11 @@ namespace Lidarr.Api.V1.Wanted
 
             if (monitoredFilter != null && monitoredFilter.Value == "false")
             {
-                pagingSpec.FilterExpressions.Add(v => v.Monitored == false || v.Artist.Monitored == false);
+                pagingSpec.FilterExpressions.Add(v => v.Monitored == false || v.Artist.Value.Monitored == false);
             }
             else
             {
-                pagingSpec.FilterExpressions.Add(v => v.Monitored == true && v.Artist.Monitored == true);
+                pagingSpec.FilterExpressions.Add(v => v.Monitored == true && v.Artist.Value.Monitored == true);
             }
 
             var resource = ApplyToPage(_albumService.AlbumsWithoutFiles, pagingSpec, v => MapToResource(v, includeArtist));

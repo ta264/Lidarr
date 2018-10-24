@@ -48,7 +48,7 @@ namespace NzbDrone.Core.Datastore
             _eventAggregator = eventAggregator;
         }
 
-        protected QueryBuilder<TModel> Query => DataMapper.Query<TModel>();
+        protected virtual QueryBuilder<TModel> Query => DataMapper.Query<TModel>();
 
         protected void Delete(Expression<Func<TModel, bool>> filter)
         {

@@ -28,7 +28,7 @@ namespace NzbDrone.Core.ArtistStats
 
             var sb = new StringBuilder();
             sb.AppendLine(GetSelectClause());
-            sb.AppendLine(GetTrackFilesJoin());
+            sb.AppendLine("WHERE ReleaseGroup.ReleaseDate < @currentDate");
             sb.AppendLine(GetGroupByClause());
             var queryText = sb.ToString();
 
@@ -44,8 +44,8 @@ namespace NzbDrone.Core.ArtistStats
 
             var sb = new StringBuilder();
             sb.AppendLine(GetSelectClause());
-            sb.AppendLine(GetTrackFilesJoin());
-            sb.AppendLine("WHERE Tracks.ArtistId = @artistId");
+            sb.AppendLine("WHERE Artist.Id = @artistId");
+            sb.AppendLine("AND ReleaseGroup.ReleaseDate < @currentDate");
             sb.AppendLine(GetGroupByClause());
             var queryText = sb.ToString();
 
@@ -54,28 +54,23 @@ namespace NzbDrone.Core.ArtistStats
 
         private string GetSelectClause()
         {
-            return @"SELECT Tracks.*, SUM(TrackFiles.Size) as SizeOnDisk FROM
-                     (SELECT
-                     Tracks.ArtistId,
-                     Tracks.AlbumId,
-                     COUNT(*) AS TotalTrackCount,
-                     SUM(CASE WHEN TrackFileId > 0 THEN 1 ELSE 0 END) AS AvailableTrackCount,
-                     SUM(CASE WHEN Monitored = 1 OR TrackFileId > 0 THEN 1 ELSE 0 END) AS TrackCount,
-                     SUM(CASE WHEN TrackFileId > 0 THEN 1 ELSE 0 END) AS TrackFileCount
-                     FROM Tracks
-                     GROUP BY Tracks.ArtistId, Tracks.AlbumId) as Tracks";
+            return @"SELECT
+                     Artist.Id AS ArtistId,
+                     ReleaseGroup.Id AS AlbumId,
+                     SUM(COALESCE(TrackFile.Size, 0)) AS SizeOnDisk,
+                     COUNT(Track.Id) AS TotalTrackCount,
+                     SUM(CASE WHEN Track.TrackFileId > 0 THEN 1 ELSE 0 END) AS AvailableTrackCount,
+                     SUM(CASE WHEN ReleaseGroup.Monitored = 1 OR Track.TrackFileId > 0 THEN 1 ELSE 0 END) AS TrackCount,
+                     SUM(CASE WHEN TrackFile.Id IS NULL THEN 0 ELSE 1 END) AS TrackFileCount
+                     FROM Track
+                     JOIN ReleaseGroup ON Track.ReleaseId = ReleaseGroup.SelectedReleaseId
+                     JOIN Artist on ReleaseGroup.ArtistMetadataId = Artist.ArtistMetadataId
+                     LEFT OUTER JOIN TrackFile ON Track.TrackFileId = TrackFile.Id";
         }
 
         private string GetGroupByClause()
         {
-            return "GROUP BY Tracks.ArtistId, Tracks.AlbumId";
-        }
-
-        private string GetTrackFilesJoin()
-        {
-            return @"LEFT OUTER JOIN TrackFiles
-                     ON TrackFiles.ArtistId = Tracks.ArtistId
-                     AND TrackFiles.AlbumId = Tracks.AlbumId";
+            return "GROUP BY Artist.Id, ReleaseGroup.Id";
         }
     }
 }

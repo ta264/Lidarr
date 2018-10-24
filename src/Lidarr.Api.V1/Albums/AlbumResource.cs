@@ -74,9 +74,9 @@ namespace Lidarr.Api.V1.Albums
                 AlbumType = model.AlbumType,
                 SecondaryTypes = model.SecondaryTypes.Select(s => s.Name).ToList(),
                 Media = model.Media.ToResource(),
-                CurrentRelease = model.CurrentRelease,
-                Releases = model.Releases.ToResource(),
-                Artist = model.Artist.ToResource()
+                CurrentRelease = model.CurrentAlbumRelease,
+                Releases = model.AlbumReleases.ToResource(),
+                Artist = model.Artist.Value.ToResource()
             };
         }
 
@@ -87,12 +87,11 @@ namespace Lidarr.Api.V1.Albums
             return new Album
             {
                 Id = resource.Id,
-                ForeignAlbumId = resource.ForeignAlbumId,
+                ForeignReleaseGroupId = resource.ForeignAlbumId,
                 Title = resource.Title,
                 Disambiguation = resource.Disambiguation,
                 Images = resource.Images,
                 Monitored = resource.Monitored,
-                CurrentRelease = resource.CurrentRelease
             };
         }
 
@@ -101,6 +100,7 @@ namespace Lidarr.Api.V1.Albums
             var updatedAlbum = resource.ToModel();
 
             album.ApplyChanges(updatedAlbum);
+            album.SelectedReleaseId = album.Releases.Value.Where(x => x.ForeignReleaseId == resource.CurrentRelease.Id).SingleOrDefault().Id;
 
             return album;
         }

@@ -72,7 +72,7 @@ namespace NzbDrone.Core.Music
                 catch (Exception ex)
                 {
                     // Catch Import Errors for now until we get things fixed up
-                    _logger.Debug("Failed to import id: {1} - {2}", s.ForeignArtistId, s.Name);
+                    _logger.Debug("Failed to import id: {1} - {2}", s.Metadata.Value.ForeignArtistId, s.Metadata.Value.Name);
                     _logger.Error(ex, ex.Message);
                 }
                 
@@ -83,26 +83,25 @@ namespace NzbDrone.Core.Music
 
         private Artist AddSkyhookData(Artist newArtist)
         {
-            Tuple<Artist, List<Album>> tuple;
+            Artist artist;
 
             try
             {
-                tuple = _artistInfo.GetArtistInfo(newArtist.ForeignArtistId, newArtist.MetadataProfileId);
+                artist = _artistInfo.GetArtistInfo(newArtist.Metadata.Value.ForeignArtistId, newArtist.MetadataProfileId);
             }
             catch (ArtistNotFoundException)
             {
-                _logger.Error("LidarrId {0} was not found, it may have been removed from Lidarr.", newArtist.ForeignArtistId);
+                _logger.Error("LidarrId {0} was not found, it may have been removed from Lidarr.", newArtist.Metadata.Value.ForeignArtistId);
 
                 throw new ValidationException(new List<ValidationFailure>
                                               {
-                                                  new ValidationFailure("SpotifyId", "An artist with this ID was not found", newArtist.ForeignArtistId)
+                                                  new ValidationFailure("SpotifyId", "An artist with this ID was not found", newArtist.Metadata.Value.ForeignArtistId)
                                               });
             }
 
-            var artist = tuple.Item1;
-
             // If albums were passed in on the new artist use them, otherwise use the albums from Skyhook
-            newArtist.Albums = newArtist.Albums != null && newArtist.Albums.Any() ? newArtist.Albums : artist.Albums;
+            if (newArtist.ReleaseGroups == null || newArtist.ReleaseGroups.Value == null || !newArtist.ReleaseGroups.Value.Any())
+                newArtist.ReleaseGroups = artist.ReleaseGroups.Value;
 
             artist.ApplyChanges(newArtist);
 
@@ -117,8 +116,8 @@ namespace NzbDrone.Core.Music
                 newArtist.Path = Path.Combine(newArtist.RootFolderPath, folderName);
             }
 
-            newArtist.CleanName = newArtist.Name.CleanArtistName();
-            newArtist.SortName = ArtistNameNormalizer.Normalize(newArtist.Name, newArtist.ForeignArtistId);
+            newArtist.CleanName = newArtist.Metadata.Value.Name.CleanArtistName();
+            newArtist.SortName = ArtistNameNormalizer.Normalize(newArtist.Metadata.Value.Name, newArtist.Metadata.Value.ForeignArtistId);
             newArtist.Added = DateTime.UtcNow;
 
             var validationResult = _addArtistValidator.Validate(newArtist);

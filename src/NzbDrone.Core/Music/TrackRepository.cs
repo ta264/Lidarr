@@ -13,16 +13,14 @@ namespace NzbDrone.Core.Music
 {
     public interface ITrackRepository : IBasicRepository<Track>
     {
-        Track Find(int artistId, int albumId, int mediumNumber, int trackNumber);
+        Track Find(int artistId, int releaseGroupId, int mediumNumber, int trackNumber);
         List<Track> GetTracks(int artistId);
-        List<Track> GetTracksByAlbum(int albumId);
-        List<Track> GetTracksByMedium(int albumId, int mediumNumber);
+        List<Track> GetTracksByAlbum(int releaseGroupId);
+        List<Track> GetTracksByRelease(int releaseId);
+        List<Track> GetTracksByForeignReleaseId(string foreignReleaseId);
+        List<Track> GetTracksByMedium(int releaseGroupId, int mediumNumber);
         List<Track> GetTracksByFileId(int fileId);
         List<Track> TracksWithFiles(int artistId);
-        PagingSpec<Track> TracksWithoutFiles(PagingSpec<Track> pagingSpec);
-        PagingSpec<Track> TracksWhereCutoffUnmet(PagingSpec<Track> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff);
-        void SetMonitoredFlat(Track episode, bool monitored);
-        void SetMonitoredByAlbum(int artistId, int albumId, bool monitored);
         void SetFileId(int trackId, int fileId);
     }
 
@@ -38,32 +36,72 @@ namespace NzbDrone.Core.Music
             _logger = logger;
         }
 
-        public Track Find(int artistId, int albumId, int mediumNumber, int trackNumber)
+        public Track Find(int artistId, int releaseGroupId, int mediumNumber, int trackNumber)
         {
-            return Query.Where(s => s.ArtistId == artistId)
-                               .AndWhere(s => s.AlbumId == albumId)
-                               .AndWhere(s => s.MediumNumber == mediumNumber)
-                               .AndWhere(s => s.AbsoluteTrackNumber == trackNumber)
-                               .SingleOrDefault();
+            string query = string.Format("SELECT Track.* " +
+                                         "FROM Artist " +
+                                         "JOIN ReleaseGroup ON ReleaseGroup.ArtistMetadataId == Artist.ArtistMetadataId " +
+                                         "JOIN Track ON Track.ReleaseId == ReleaseGroup.SelectedReleaseId " +
+                                         "WHERE Artist.Id = {0} " +
+                                         "AND ReleaseGroup.Id = {1} " +
+                                         "AND Track.MediumNumber = {2} " +
+                                         "AND Track.AbsoluteTrackNumber = {3}",
+                                         artistId, releaseGroupId, mediumNumber, trackNumber);
+
+            return Query.QueryText(query).SingleOrDefault();
         }
 
 
         public List<Track> GetTracks(int artistId)
         {
-            return Query.Where(s => s.ArtistId == artistId).ToList();
+            string query = string.Format("SELECT Track.* " +
+                                         "FROM Artist " +
+                                         "JOIN ReleaseGroup ON ReleaseGroup.ArtistMetadataId == Artist.ArtistMetadataId " +
+                                         "JOIN Track ON Track.ReleaseId == ReleaseGroup.SelectedReleaseId " +
+                                         "WHERE Artist.Id = {0}",
+                                         artistId);
+            
+            return Query.QueryText(query).ToList();
         }
 
-        public List<Track> GetTracksByAlbum(int albumId)
+        public List<Track> GetTracksByAlbum(int releaseGroupId)
         {
-            return Query.Where(s => s.AlbumId == albumId)
-                        .ToList();
+            string query = string.Format("SELECT Track.* " +
+                                         "FROM ReleaseGroup " +
+                                         "JOIN Track ON Track.ReleaseId == ReleaseGroup.SelectedReleaseId " +
+                                         "WHERE ReleaseGroup.Id = {0}",
+                                         releaseGroupId);
+
+            return Query.QueryText(query).ToList();
         }
 
-        public List<Track> GetTracksByMedium(int albumId, int mediumNumber)
+        public List<Track> GetTracksByRelease(int releaseId)
         {
-            return Query.Where(s => s.AlbumId == albumId)
-                        .AndWhere(s => s.MediumNumber == mediumNumber)
-                        .ToList();
+            return Query.Where(t => t.ReleaseId == releaseId).ToList();
+        }
+
+        public List<Track> GetTracksByForeignReleaseId(string foreignReleaseId)
+        {
+            string query = string.Format("SELECT Track.* " +
+                                         "FROM Release " +
+                                         "JOIN Track ON Track.ReleaseId == Release.Id " +
+                                         "WHERE Release.ForeignReleaseId = '{0}'",
+                                         foreignReleaseId);
+
+            return Query.QueryText(query).ToList();
+        }
+
+        public List<Track> GetTracksByMedium(int releaseGroupId, int mediumNumber)
+        {
+            string query = string.Format("SELECT Track.* " +
+                                         "FROM ReleaseGroup " +
+                                         "JOIN Track ON Track.ReleaseId == ReleaseGroup.SelectedReleaseId " +
+                                         "WHERE ReleaseGroup.Id = {0} " +
+                                         "AND Track.MediumNumber = {1}",
+                                         releaseGroupId,
+                                         mediumNumber);
+
+            return Query.QueryText(query).ToList();
         }
 
         public List<Track> GetTracksByFileId(int fileId)
@@ -73,99 +111,20 @@ namespace NzbDrone.Core.Music
 
         public List<Track> TracksWithFiles(int artistId)
         {
-            return Query.Join<Track, TrackFile>(JoinType.Inner, e => e.TrackFile, (e, ef) => e.TrackFileId == ef.Id)
-                        .Where(e => e.ArtistId == artistId);
-        }
+            string query = string.Format("SELECT Track.* " +
+                                         "FROM Artist " +
+                                         "JOIN ReleaseGroup ON ReleaseGroup.ArtistMetadataId = Artist.ArtistMetadataId " +
+                                         "JOIN Track ON Track.ReleaseId == ReleaseGroup.SelectedReleaseId " +
+                                         "JOIN TrackFile ON TrackFile.Id == Track.TrackFileId " +
+                                         "WHERE Artist.Id == {0}",
+                                         artistId);
 
-        public PagingSpec<Track> TracksWhereCutoffUnmet(PagingSpec<Track> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff)
-        {
-            pagingSpec.TotalRecords = TracksWhereCutoffUnmetQuery(pagingSpec, qualitiesBelowCutoff).GetRowCount();
-            pagingSpec.Records = TracksWhereCutoffUnmetQuery(pagingSpec, qualitiesBelowCutoff).ToList();
-
-            return pagingSpec;
-        }
-
-        public void SetMonitoredFlat(Track track, bool monitored)
-        {
-            track.Monitored = monitored;
-            SetFields(track, p => p.Monitored);
-        }
-
-        public void SetMonitoredByAlbum(int artistId, int albumId, bool monitored)
-        {
-            var mapper = _database.GetDataMapper();
-
-            mapper.AddParameter("artistId", artistId);
-            mapper.AddParameter("albumId", albumId);
-            mapper.AddParameter("monitored", monitored);
-
-            const string sql = "UPDATE Tracks " +
-                               "SET Monitored = @monitored " +
-                               "WHERE ArtistId = @artistId " +
-                               "AND AlbumId = @albumId";
-
-            mapper.ExecuteNonQuery(sql);
+            return Query.QueryText(query).ToList();
         }
 
         public void SetFileId(int trackId, int fileId)
         {
             SetFields(new Track { Id = trackId, TrackFileId = fileId }, track => track.TrackFileId);
-        }
-
-        public PagingSpec<Track> TracksWithoutFiles(PagingSpec<Track> pagingSpec)
-        {
-            var currentTime = DateTime.UtcNow;
-
-            pagingSpec.TotalRecords = GetMissingTracksQuery(pagingSpec, currentTime).GetRowCount();
-            pagingSpec.Records = GetMissingTracksQuery(pagingSpec, currentTime).ToList();
-
-            return pagingSpec;
-        }
-
-        private SortBuilder<Track> GetMissingTracksQuery(PagingSpec<Track> pagingSpec, DateTime currentTime)
-        {
-            return Query.Join<Track, Artist>(JoinType.Inner, e => e.Artist, (e, s) => e.ArtistId == s.Id)
-                            .Where(pagingSpec.FilterExpressions.FirstOrDefault())
-                            .AndWhere(e => e.TrackFileId == 0)
-                            .AndWhere(BuildAirDateUtcCutoffWhereClause(currentTime))
-                            .OrderBy(pagingSpec.OrderByClause(), pagingSpec.ToSortDirection())
-                            .Skip(pagingSpec.PagingOffset())
-                            .Take(pagingSpec.PageSize);
-        }
-
-
-        private SortBuilder<Track> TracksWhereCutoffUnmetQuery(PagingSpec<Track> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff)
-        {
-            return Query.Join<Track, Artist>(JoinType.Inner, e => e.Artist, (e, s) => e.ArtistId == s.Id)
-                             .Join<Track, TrackFile>(JoinType.Left, e => e.TrackFile, (e, s) => e.TrackFileId == s.Id)
-                             .Where(pagingSpec.FilterExpressions.FirstOrDefault())
-                             .AndWhere(e => e.TrackFileId != 0)
-                             .AndWhere(BuildQualityCutoffWhereClause(qualitiesBelowCutoff))
-                             .OrderBy(pagingSpec.OrderByClause(), pagingSpec.ToSortDirection())
-                             .Skip(pagingSpec.PagingOffset())
-                             .Take(pagingSpec.PageSize);
-        }
-
-        private string BuildAirDateUtcCutoffWhereClause(DateTime currentTime)
-        {
-            return string.Format("WHERE datetime(strftime('%s', [t0].[AirDateUtc]) + [t1].[RunTime] * 60,  'unixepoch') <= '{0}'",
-                                 currentTime.ToString("yyyy-MM-dd HH:mm:ss"));
-        }
-
-
-        private string BuildQualityCutoffWhereClause(List<QualitiesBelowCutoff> qualitiesBelowCutoff)
-        {
-            var clauses = new List<string>();
-
-            foreach (var profile in qualitiesBelowCutoff)
-            {
-                foreach (var belowCutoff in profile.QualityIds)
-                {
-                    clauses.Add(string.Format("([t1].[ProfileId] = {0} AND [t2].[Quality] LIKE '%_quality_: {1},%')", profile.ProfileId, belowCutoff));
-                }
-            }
-
-            return string.Format("({0})", string.Join(" OR ", clauses));
         }
     }
 }

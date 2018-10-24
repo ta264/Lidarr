@@ -15,12 +15,12 @@ namespace NzbDrone.Core.Housekeeping.Housekeepers
         {
             var mapper = _database.GetDataMapper();
 
-            mapper.ExecuteNonQuery(@"DELETE FROM Albums
+            mapper.ExecuteNonQuery(@"DELETE FROM ReleaseGroup
                                      WHERE Id IN (
-                                     SELECT Albums.Id FROM Albums
-                                     LEFT OUTER JOIN Artists
-                                     ON Albums.ArtistId = Artists.Id
-                                     WHERE Artists.Id IS NULL)");
+                                     SELECT ReleaseGroup.Id FROM ReleaseGroup
+                                     LEFT OUTER JOIN Artist
+                                     ON ReleaseGroup.ArtistMetadataId = Artist.ArtistMetadataId
+                                     WHERE Artist.Id IS NULL)");
         }
     }
 }

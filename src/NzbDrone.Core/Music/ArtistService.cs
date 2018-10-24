@@ -15,6 +15,7 @@ namespace NzbDrone.Core.Music
     public interface IArtistService
     {
         Artist GetArtist(int artistId);
+        Artist GetArtistByMetadataId(int artistMetadataId);
         List<Artist> GetArtists(IEnumerable<int> artistIds);
         Artist AddArtist(Artist newArtist);
         List<Artist> AddArtists(List<Artist> newArtists);
@@ -33,18 +34,21 @@ namespace NzbDrone.Core.Music
     public class ArtistService : IArtistService
     {
         private readonly IArtistRepository _artistRepository;
+        private readonly IArtistMetadataRepository _artistMetadataRepository;
         private readonly IEventAggregator _eventAggregator;
         private readonly ITrackService _trackService;
         private readonly IBuildArtistPaths _artistPathBuilder;
         private readonly Logger _logger;
 
         public ArtistService(IArtistRepository artistRepository,
-                            IEventAggregator eventAggregator,
-                            ITrackService trackService,
-                            IBuildArtistPaths artistPathBuilder,
-                            Logger logger)
+                             IArtistMetadataRepository artistMetadataRepository,
+                             IEventAggregator eventAggregator,
+                             ITrackService trackService,
+                             IBuildArtistPaths artistPathBuilder,
+                             Logger logger)
         {
             _artistRepository = artistRepository;
+            _artistMetadataRepository = artistMetadataRepository;
             _eventAggregator = eventAggregator;
             _trackService = trackService;
             _artistPathBuilder = artistPathBuilder;
@@ -53,6 +57,7 @@ namespace NzbDrone.Core.Music
 
         public Artist AddArtist(Artist newArtist)
         {
+            _artistMetadataRepository.Insert(newArtist);
             _artistRepository.Insert(newArtist);
             _eventAggregator.PublishEvent(new ArtistAddedEvent(GetArtist(newArtist.Id)));
 
@@ -61,6 +66,7 @@ namespace NzbDrone.Core.Music
 
         public List<Artist> AddArtists(List<Artist> newArtists)
         {
+            newArtists = _artistMetadataRepository.InsertMany(newArtists);
             _artistRepository.InsertMany(newArtists);
             _eventAggregator.PublishEvent(new ArtistsImportedEvent(newArtists.Select(s => s.Id).ToList()));
 
@@ -110,6 +116,10 @@ namespace NzbDrone.Core.Music
             return _artistRepository.Get(artistDBId);
         }
 
+        public Artist GetArtistByMetadataId(int artistMetadataId)
+        {
+            return _artistRepository.GetArtistByMetadataId(artistMetadataId);
+        }
 
         public List<Artist> GetArtists(IEnumerable<int> artistIds)
         {
@@ -123,19 +133,17 @@ namespace NzbDrone.Core.Music
 
         public Artist UpdateArtist(Artist artist)
         {
-            var storedArtist = GetArtist(artist.Id); // Is it Id or iTunesId? 
-
-            foreach (var album in artist.Albums)
+            var storedArtist = GetArtist(artist.Id); // Is it Id or iTunesId?
+            if (artist.ReleaseGroups != null && artist.ReleaseGroups.Value != null)
             {
-                var storedAlbum = storedArtist.Albums.SingleOrDefault(s => s.ForeignAlbumId == album.ForeignAlbumId);
-
-                if (storedAlbum != null && album.Monitored != storedAlbum.Monitored)
+                foreach (var album in artist.ReleaseGroups.Value)
                 {
-                    _trackService.SetTrackMonitoredByAlbum(artist.Id, album.Id, album.Monitored);
+                    var storedAlbum = storedArtist.ReleaseGroups.Value.SingleOrDefault(s => s.ForeignReleaseGroupId == album.ForeignReleaseGroupId);
                 }
             }
 
-            var updatedArtist = _artistRepository.Update(artist);
+            var updatedArtist = _artistMetadataRepository.Update(artist);
+            updatedArtist = _artistRepository.Update(updatedArtist);
             _eventAggregator.PublishEvent(new ArtistEditedEvent(updatedArtist, storedArtist));
 
             return updatedArtist;
@@ -163,6 +171,7 @@ namespace NzbDrone.Core.Music
                 }
             }
 
+            _artistMetadataRepository.UpdateMany(artist);
             _artistRepository.UpdateMany(artist);
             _logger.Debug("{0} artists updated", artist.Count);
 

@@ -47,9 +47,9 @@ namespace NzbDrone.Core.Music
                 if (monitoredAlbums.Any())
                 {
                     ToggleAlbumsMonitoredState(
-                        albums.Where(s => monitoredAlbums.Any(t => t == s.ForeignAlbumId)), true);
+                        albums.Where(s => monitoredAlbums.Any(t => t == s.ForeignReleaseGroupId)), true);
                     ToggleAlbumsMonitoredState(
-                        albums.Where(s => monitoredAlbums.Any(t => t != s.ForeignAlbumId)), false);
+                        albums.Where(s => monitoredAlbums.Any(t => t != s.ForeignReleaseGroupId)), false);
                 }
                 else
                 {
@@ -103,12 +103,6 @@ namespace NzbDrone.Core.Music
             foreach (var album in albums)
             {
                 album.Monitored = monitored;
-                var tracks = _trackService.GetTracksByAlbum(album.Id);
-                foreach (var track in tracks)
-                {
-                    track.Monitored = monitored;
-                }
-                _trackService.UpdateTracks(tracks);
             }
         }
     }

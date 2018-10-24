@@ -16,6 +16,7 @@ namespace NzbDrone.Core.Test.OrganizerTests.FileNameBuilderTests
     {
         private Artist _artist;
         private Album _album;
+        private Release _release;
         private Track _track;
         private TrackFile _trackFile;
         private NamingConfig _namingConfig;
@@ -28,9 +29,15 @@ namespace NzbDrone.Core.Test.OrganizerTests.FileNameBuilderTests
                     .With(s => s.Name = "Alien Ant Farm")
                     .Build();
 
+            _release = Builder<Release>
+                .CreateNew()
+                .With(s => s.Media = new List<Medium> { new Medium { Number = 1 } })
+                .Build();
+
             _album = Builder<Album>
                     .CreateNew()
                     .With(s => s.Title = "Anthology")
+                    .With(s => s.SelectedRelease = _release)
                     .Build();
 
             _track = Builder<Track>.CreateNew()

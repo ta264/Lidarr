@@ -74,17 +74,18 @@ namespace NzbDrone.Core.MediaFiles.TrackImport
                         continue;
                     }
 
-                    var trackFile = new TrackFile();
-                    trackFile.DateAdded = DateTime.UtcNow;
-                    trackFile.ArtistId = localTrack.Artist.Id;
-                    trackFile.Path = localTrack.Path.CleanFilePath();
-                    trackFile.Size = _diskProvider.GetFileSize(localTrack.Path);
-                    trackFile.Quality = localTrack.Quality;
-                    trackFile.MediaInfo = localTrack.MediaInfo;
-                    trackFile.AlbumId = localTrack.Album.Id;
-                    trackFile.ReleaseGroup = localTrack.ParsedTrackInfo.ReleaseGroup;
-                    trackFile.Tracks = localTrack.Tracks;
-                    trackFile.Language = localTrack.Language;
+                    
+                    var trackFile = new TrackFile {
+                        Path = localTrack.Path.CleanFilePath(),
+                        Size = _diskProvider.GetFileSize(localTrack.Path),
+                        DateAdded = DateTime.UtcNow,
+                        ReleaseGroup = localTrack.ParsedTrackInfo.ReleaseGroup,
+                        Quality = localTrack.Quality,
+                        MediaInfo = localTrack.MediaInfo,
+                        Language = localTrack.Language,
+                        AlbumId = localTrack.Album.Id,
+                        Tracks = localTrack.Tracks
+                    };
 
                     bool copyOnly;
                     switch (importMode)

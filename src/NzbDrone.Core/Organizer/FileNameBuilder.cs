@@ -101,7 +101,7 @@ namespace NzbDrone.Core.Organizer
             var pattern = namingConfig.StandardTrackFormat;
             var tokenHandlers = new Dictionary<string, Func<TokenMatch, string>>(FileNameBuilderTokenEqualityComparer.Instance);
 
-            tracks = tracks.OrderBy(e => e.AlbumId).ThenBy(e => e.TrackNumber).ToList();
+            tracks = tracks.OrderBy(e => e.ReleaseId).ThenBy(e => e.TrackNumber).ToList();
 
             pattern = FormatTrackNumberTokens(pattern, "", tracks);
             pattern = FormatMediumNumberTokens(pattern, "", tracks);

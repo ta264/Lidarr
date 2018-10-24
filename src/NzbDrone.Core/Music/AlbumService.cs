@@ -13,8 +13,7 @@ namespace NzbDrone.Core.Music
         Album GetAlbum(int albumId);
         List<Album> GetAlbums(IEnumerable<int> albumIds);
         List<Album> GetAlbumsByArtist(int artistId);
-        Album AddAlbum(Album newAlbum);
-        List<Album> AddAlbums(List<Album> newAlbums);
+        Album AddAlbum(Album newAlbum, string albumArtistId);
         Album FindById(string spotifyId);
         Album FindByTitle(int artistId, string title);
         Album FindByTitleInexact(int artistId, string title);
@@ -32,6 +31,7 @@ namespace NzbDrone.Core.Music
         void DeleteMany(List<Album> albums);
         void RemoveAddOptions(Album album);
         Album FindAlbumByRelease(string releaseId);
+        Album FindAlbumByTrackId(int trackId);
         List<Album> GetArtistAlbumsWithFiles(Artist artist);
     }
 
@@ -39,35 +39,43 @@ namespace NzbDrone.Core.Music
                                 IHandleAsync<ArtistDeletedEvent>
     {
         private readonly IAlbumRepository _albumRepository;
+        private readonly IReleaseRepository _releaseRepository;
+        private readonly IArtistMetadataRepository _artistMetadataRepository;
         private readonly IEventAggregator _eventAggregator;
         private readonly ITrackService _trackService;
         private readonly Logger _logger;
 
         public AlbumService(IAlbumRepository albumRepository,
+                            IReleaseRepository releaseRepository,
+                            IArtistMetadataRepository artistMetadataRepository,
                             IEventAggregator eventAggregator,
                             ITrackService trackService,
                             Logger logger)
         {
             _albumRepository = albumRepository;
+            _releaseRepository = releaseRepository;
+            _artistMetadataRepository = artistMetadataRepository;
             _eventAggregator = eventAggregator;
             _trackService = trackService;
             _logger = logger;
         }
 
-        public Album AddAlbum(Album newAlbum)
+        public Album AddAlbum(Album newAlbum, string albumArtistId)
         {
             _albumRepository.Insert(newAlbum);
+            
+            foreach (var release in newAlbum.Releases.Value)
+                release.ReleaseGroupId = newAlbum.Id;
+            _releaseRepository.InsertMany(newAlbum.Releases.Value);
+            
+            newAlbum.ArtistMetadata = _artistMetadataRepository.FindById(albumArtistId);
+            newAlbum.ArtistMetadataId = newAlbum.ArtistMetadata.Value.Id;
+            newAlbum.SelectedReleaseId = newAlbum.SelectedRelease.Value.Id;
+            
+            _albumRepository.Update(newAlbum);
             //_eventAggregator.PublishEvent(new AlbumAddedEvent(GetAlbum(newAlbum.Id)));
 
             return newAlbum;
-        }
-
-        public List<Album> AddAlbums(List<Album> newAlbums)
-        {
-            _albumRepository.InsertMany(newAlbums);
-            //_eventAggregator.PublishEvent(new AlbumsAddedEvent(newAlbums.Select(s => s.Id).ToList()));
-
-            return newAlbums;
         }
 
         public void DeleteAlbum(int albumId, bool deleteFiles)
@@ -117,9 +125,15 @@ namespace NzbDrone.Core.Music
             return _albumRepository.FindAlbumByRelease(releaseId);
         }
 
+        public Album FindAlbumByTrackId(int trackId)
+        {
+            return _albumRepository.FindAlbumByTrack(trackId);
+        }
+
         public void RemoveAddOptions(Album album)
         {
-            _albumRepository.SetFields(album, s => s.AddOptions);
+            var rg = _albumRepository.Get(album.Id);
+            _albumRepository.SetFields(rg, s => s.AddOptions);
         }
 
         public PagingSpec<Album> AlbumsWithoutFiles(PagingSpec<Album> pagingSpec)
@@ -183,12 +197,13 @@ namespace NzbDrone.Core.Music
             var album = _albumRepository.Get(albumId);
             _albumRepository.SetMonitoredFlat(album, monitored);
 
-            var tracks = _trackService.GetTracksByAlbum(albumId);
-            foreach (var track in tracks)
-            {
-                track.Monitored = monitored;
-            }
-            _trackService.UpdateTracks(tracks);
+            // var tracks = _trackService.GetTracksByAlbum(albumId);
+            // var tracks = album.SelectedRelease.Value.Tracks.Value;
+            // foreach (var track in tracks)
+            // {
+            //     track.Monitored = monitored;
+            // }
+            // _trackService.UpdateTracks(tracks);
 
             _logger.Debug("Monitored flag for Album:{0} was set to {1}", albumId, monitored);
         }
@@ -198,12 +213,12 @@ namespace NzbDrone.Core.Music
             _albumRepository.SetMonitored(ids, monitored);
             foreach (var id in ids)
             {
-                var tracks = _trackService.GetTracksByAlbum(id);
-                foreach (var track in tracks)
-                {
-                    track.Monitored = monitored;
-                }
-                _trackService.UpdateTracks(tracks);
+                // var tracks = _trackService.GetTracksByAlbum(id);
+                // foreach (var track in tracks)
+                // {
+                //     track.Monitored = monitored;
+                // }
+                // _trackService.UpdateTracks(tracks);
             }
         }
 

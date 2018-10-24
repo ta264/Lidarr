@@ -92,7 +92,7 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
         [TestCase(FORTY_FIVE_MINUTE_LP_MILLIS, 75, false)]
         public void single_album(int runtime, int sizeInMegaBytes, bool expectedResult)
         {
-            parseResultSingle.Albums.Select(c => { c.Duration = runtime; return c; }).ToList();
+            parseResultSingle.Albums.Select(c => { c.SelectedRelease.Value.Duration = runtime; return c; }).ToList();
             parseResultSingle.Artist = artist;
             parseResultSingle.Release.Size = sizeInMegaBytes.Megabytes();
 
@@ -107,7 +107,7 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
         [TestCase(FORTY_FIVE_MINUTE_LP_MILLIS, 75 * 2, false)]
         public void multi_album(int runtime, int sizeInMegaBytes, bool expectedResult)
         {
-            parseResultMulti.Albums.Select(c => { c.Duration = runtime; return c; }).ToList();
+            parseResultMulti.Albums.Select(c => { c.SelectedRelease.Value.Duration = runtime; return c; }).ToList();
             parseResultMulti.Artist = artist;
             parseResultMulti.Release.Size = sizeInMegaBytes.Megabytes();
 
@@ -122,7 +122,7 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
         [TestCase(FORTY_FIVE_MINUTE_LP_MILLIS, 75 * 6, false)]
         public void multiset_album(int runtime, int sizeInMegaBytes, bool expectedResult)
         {
-            parseResultMultiSet.Albums.Select(c => { c.Duration = runtime; return c; }).ToList();
+            parseResultMultiSet.Albums.Select(c => { c.SelectedRelease.Value.Duration = runtime; return c; }).ToList();
             parseResultMultiSet.Artist = artist;
             parseResultMultiSet.Release.Size = sizeInMegaBytes.Megabytes();
 
@@ -133,7 +133,7 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
         public void should_return_true_if_size_is_zero()
         {
             GivenLastAlbum();
-            parseResultSingle.Albums.Select(c => { c.Duration = TWENTY_MINUTE_EP_MILLIS; return c; }).ToList();
+            parseResultSingle.Albums.Select(c => { c.SelectedRelease.Value.Duration = TWENTY_MINUTE_EP_MILLIS; return c; }).ToList();
             parseResultSingle.Artist = artist;
             parseResultSingle.Release.Size = 0;
             qualityType.MinSize = 150;
@@ -146,7 +146,7 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
         public void should_return_true_if_unlimited_20_minute()
         {
             GivenLastAlbum();
-            parseResultSingle.Albums.Select(c => { c.Duration = TWENTY_MINUTE_EP_MILLIS; return c; }).ToList();
+            parseResultSingle.Albums.Select(c => { c.SelectedRelease.Value.Duration = TWENTY_MINUTE_EP_MILLIS; return c; }).ToList();
             parseResultSingle.Artist = artist;
             parseResultSingle.Release.Size = (HIGH_KBPS_BITRATE * 128) * (TWENTY_MINUTE_EP_MILLIS / 1000);
             qualityType.MaxSize = null;
@@ -158,7 +158,7 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
         public void should_return_true_if_unlimited_45_minute()
         {
             GivenLastAlbum();
-            parseResultSingle.Albums.Select(c => { c.Duration = FORTY_FIVE_MINUTE_LP_MILLIS; return c; }).ToList();
+            parseResultSingle.Albums.Select(c => { c.SelectedRelease.Value.Duration = FORTY_FIVE_MINUTE_LP_MILLIS; return c; }).ToList();
             parseResultSingle.Artist = artist;
             parseResultSingle.Release.Size = (HIGH_KBPS_BITRATE * 128) * (FORTY_FIVE_MINUTE_LP_MILLIS / 1000);
             qualityType.MaxSize = null;

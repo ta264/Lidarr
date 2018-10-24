@@ -19,30 +19,50 @@ namespace NzbDrone.Core.Test.MusicTests
     {
         private Artist _artist;
         private List<Album> _albums;
+        private List<Release> _releases;
+        private string _fakeArtistForeignId = "xxx-xxx-xxx";
+        private List<ArtistMetadata> _fakeArtists = new List<ArtistMetadata> { new ArtistMetadata() };
 
         [SetUp]
         public void Setup()
         {
-            var album1 = Builder<Album>.CreateNew()
-                .With(s => s.ForeignAlbumId = "1")
+
+            var release = Builder<Release>
+                .CreateNew()
+                .With(s => s.Media = new List<Medium> { new Medium { Number = 1 } })
+                .With(s => s.ForeignReleaseId = "xxx-xxx-xxx-xxx")
                 .Build();
 
-            _albums = new List<Album>{album1};
+            _releases = new List<Release> { release };
+            
+            var album1 = Builder<Album>.CreateNew()
+                .With(s => s.ForeignReleaseGroupId = "1")
+                .With(s => s.SelectedRelease = release)
+                .With(s => s.Releases = _releases)
+                .Build();
+
+            _albums = new List<Album>{ album1 };
 
             _artist = Builder<Artist>.CreateNew()
-                                     .With(s => s.Albums = new List<Album>
-                                                            {
-                                                                album1
-                                                            })
-                                     .Build();
+                .With(s => s.ReleaseGroups = _albums)
+                .Build();
+
+
 
             Mocker.GetMock<IArtistService>()
                   .Setup(s => s.GetArtist(_artist.Id))
                   .Returns(_artist);
+
+            Mocker.GetMock<IReleaseService>()
+                .Setup(s => s.GetReleasesByReleaseGroup(album1.Id))
+                .Returns(_releases);
+            Mocker.GetMock<IReleaseService>()
+                .Setup(s => s.GetRelease(release.Id))
+                .Returns(release);
             
             Mocker.GetMock<IProvideAlbumInfo>()
-                  .Setup(s => s.GetAlbumInfo(It.IsAny<string>(), It.IsAny<string>()))
-                  .Callback(() => { throw new AlbumNotFoundException(album1.ForeignAlbumId); });
+                .Setup(s => s.GetAlbumInfo(It.IsAny<string>()))
+                  .Callback(() => { throw new AlbumNotFoundException(album1.ForeignReleaseGroupId); });
 
             Mocker.GetMock<ICheckIfAlbumShouldBeRefreshed>()
                 .Setup(s => s.ShouldRefresh(It.IsAny<Album>()))
@@ -52,8 +72,8 @@ namespace NzbDrone.Core.Test.MusicTests
         private void GivenNewAlbumInfo(Album album)
         {
             Mocker.GetMock<IProvideAlbumInfo>()
-                  .Setup(s => s.GetAlbumInfo(_albums.First().ForeignAlbumId, It.IsAny<string>()))
-                  .Returns(new Tuple<Album, List<Track>>(album, new List<Track>()));
+                .Setup(s => s.GetAlbumInfo(_albums.First().ForeignReleaseGroupId))
+                .Returns(new Tuple<string, Album, List<ArtistMetadata>>(_fakeArtistForeignId, album, _fakeArtists));
         }
 
         [Test]
@@ -71,14 +91,15 @@ namespace NzbDrone.Core.Test.MusicTests
         public void should_update_if_musicbrainz_id_changed()
         {
             var newAlbumInfo = _albums.FirstOrDefault().JsonClone();
-            newAlbumInfo.ForeignAlbumId = _albums.First().ForeignAlbumId + 1;
+            newAlbumInfo.ForeignReleaseGroupId = _albums.First().ForeignReleaseGroupId + 1;
+            newAlbumInfo.Releases = _releases;
 
             GivenNewAlbumInfo(newAlbumInfo);
 
             Subject.RefreshAlbumInfo(_albums, false);
 
             Mocker.GetMock<IAlbumService>()
-                .Verify(v => v.UpdateMany(It.Is<List<Album>>(s => s.First().ForeignAlbumId == newAlbumInfo.ForeignAlbumId)));
+                .Verify(v => v.UpdateMany(It.Is<List<Album>>(s => s.First().ForeignReleaseGroupId == newAlbumInfo.ForeignReleaseGroupId)));
 
             ExceptionVerification.ExpectedWarns(1);
         }

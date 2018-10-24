@@ -71,7 +71,7 @@ namespace Lidarr.Api.V1.Albums
 
             if (includeArtist)
             {
-                var artist = album.Artist ?? _artistService.GetArtist(album.ArtistId);
+                var artist = album.Artist.Value ?? _artistService.GetArtist(album.ArtistId);
 
                 resource.Artist = artist.ToResource();
             }
@@ -93,8 +93,8 @@ namespace Lidarr.Api.V1.Albums
                     var album = albums[i];
                     var resource = result[i];
 
-                    var artist = album.Artist ?? artistDict.GetValueOrDefault(albums[i].ArtistId) ?? _artistService.GetArtist(albums[i].ArtistId);
-                    artistDict[artist.Id] = artist;
+                    var artist = album.Artist?.Value; // ?? artistDict.GetValueOrDefault(albums[i].ArtistMetadataId) ?? _artistService.GetArtist(albums[i].ArtistId);
+                    // artistDict[artist.Id] = artist;
 
                     resource.Artist = artist.ToResource();
                 }

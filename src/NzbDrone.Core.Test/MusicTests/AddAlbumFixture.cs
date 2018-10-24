@@ -19,6 +19,9 @@ namespace NzbDrone.Core.Test.MusicTests
     public class AddAlbumFixture : CoreTest<AddAlbumService>
     {
         private Album _fakeAlbum;
+        private Release _fakeRelease;
+        private string _fakeArtistForeignId = "xxx-xxx-xxx";
+        private List<ArtistMetadata> _fakeArtists = new List<ArtistMetadata> { new ArtistMetadata() };
 
         [SetUp]
         public void Setup()
@@ -26,13 +29,18 @@ namespace NzbDrone.Core.Test.MusicTests
             _fakeAlbum = Builder<Album>
                 .CreateNew()
                 .Build();
+            _fakeRelease = Builder<Release>
+                .CreateNew()
+                .Build();
+            _fakeRelease.Tracks = new List<Track>();
+            _fakeAlbum.Releases = new List<Release> {_fakeRelease};
         }
 
         private void GivenValidAlbum(string lidarrId)
         {
             Mocker.GetMock<IProvideAlbumInfo>()
-                  .Setup(s => s.GetAlbumInfo(lidarrId, It.IsAny<string>()))
-                  .Returns(new Tuple<Album, List<Track>>(_fakeAlbum, new List<Track>()));
+                .Setup(s => s.GetAlbumInfo(lidarrId))
+                .Returns(new Tuple<string, Album, List<ArtistMetadata>>(_fakeArtistForeignId, _fakeAlbum, _fakeArtists));
         }
 
         [Test]
@@ -40,10 +48,10 @@ namespace NzbDrone.Core.Test.MusicTests
         {
             var newAlbum = new Album
             {
-                ForeignAlbumId = "ce09ea31-3d4a-4487-a797-e315175457a0"
+                ForeignReleaseGroupId = "ce09ea31-3d4a-4487-a797-e315175457a0"
             };
 
-            GivenValidAlbum(newAlbum.ForeignAlbumId);
+            GivenValidAlbum(newAlbum.ForeignReleaseGroupId);
 
             var album = Subject.AddAlbum(newAlbum);
 
@@ -55,12 +63,12 @@ namespace NzbDrone.Core.Test.MusicTests
         {
             var newAlbum = new Album
             {
-                ForeignAlbumId = "ce09ea31-3d4a-4487-a797-e315175457a0"
+                ForeignReleaseGroupId = "ce09ea31-3d4a-4487-a797-e315175457a0"
             };
 
             Mocker.GetMock<IProvideAlbumInfo>()
-                  .Setup(s => s.GetAlbumInfo(newAlbum.ForeignAlbumId, It.IsAny<string>()))
-                  .Throws(new AlbumNotFoundException(newAlbum.ForeignAlbumId));
+                .Setup(s => s.GetAlbumInfo(newAlbum.ForeignReleaseGroupId))
+                .Throws(new AlbumNotFoundException(newAlbum.ForeignReleaseGroupId));
 
             Assert.Throws<ValidationException>(() => Subject.AddAlbum(newAlbum));
 

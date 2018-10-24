@@ -66,15 +66,15 @@ namespace NzbDrone.Core.Test.MusicTests.AlbumMonitoredServiceTests
         [Test]
         public void should_be_able_to_monitor_albums_when_passed_in_artist()
         {
-            var albumsToMonitor = new List<string>{_albums.First().ForeignAlbumId};
+            var albumsToMonitor = new List<string>{_albums.First().ForeignReleaseGroupId};
 
             Subject.SetAlbumMonitoredStatus(_artist, new MonitoringOptions { Monitored = true, AlbumsToMonitor = albumsToMonitor });
 
             Mocker.GetMock<IArtistService>()
                 .Verify(v => v.UpdateArtist(It.IsAny<Artist>()), Times.Once());
 
-            VerifyMonitored(e => e.ForeignAlbumId == _albums.First().ForeignAlbumId);
-            VerifyNotMonitored(e => e.ForeignAlbumId != _albums.First().ForeignAlbumId);
+            VerifyMonitored(e => e.ForeignReleaseGroupId == _albums.First().ForeignReleaseGroupId);
+            VerifyNotMonitored(e => e.ForeignReleaseGroupId != _albums.First().ForeignReleaseGroupId);
         }
 
         [Test]

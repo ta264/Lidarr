@@ -27,9 +27,9 @@ namespace NzbDrone.Core.Housekeeping.Housekeepers
             mapper.ExecuteNonQuery(@"DELETE FROM MetadataFiles
                                      WHERE Id IN (
                                      SELECT MetadataFiles.Id FROM MetadataFiles
-                                     LEFT OUTER JOIN Artists
-                                     ON MetadataFiles.ArtistId = Artists.Id
-                                     WHERE Artists.Id IS NULL)");
+                                     LEFT OUTER JOIN Artist
+                                     ON MetadataFiles.ArtistId = Artist.Id
+                                     WHERE Artist.Id IS NULL)");
         }
 
         private void DeleteOrphanedByAlbum()
@@ -39,10 +39,10 @@ namespace NzbDrone.Core.Housekeeping.Housekeepers
             mapper.ExecuteNonQuery(@"DELETE FROM MetadataFiles
                                      WHERE Id IN (
                                      SELECT MetadataFiles.Id FROM MetadataFiles
-                                     LEFT OUTER JOIN Albums
-                                     ON MetadataFiles.AlbumId = Albums.Id
+                                     LEFT OUTER JOIN ReleaseGroup
+                                     ON MetadataFiles.AlbumId = ReleaseGroup.Id
                                      WHERE MetadataFiles.AlbumId > 0
-                                     AND Albums.Id IS NULL)");
+                                     AND ReleaseGroup.Id IS NULL)");
         }
 
         private void DeleteOrphanedByTrackFile()
@@ -52,10 +52,10 @@ namespace NzbDrone.Core.Housekeeping.Housekeepers
             mapper.ExecuteNonQuery(@"DELETE FROM MetadataFiles
                                      WHERE Id IN (
                                      SELECT MetadataFiles.Id FROM MetadataFiles
-                                     LEFT OUTER JOIN TrackFiles
-                                     ON MetadataFiles.TrackFileId = TrackFiles.Id
+                                     LEFT OUTER JOIN TrackFile
+                                     ON MetadataFiles.TrackFileId = TrackFile.Id
                                      WHERE MetadataFiles.TrackFileId > 0
-                                     AND TrackFiles.Id IS NULL)");
+                                     AND TrackFile.Id IS NULL)");
         }
 
         private void DeleteWhereAlbumIdIsZero()

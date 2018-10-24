@@ -18,6 +18,7 @@ namespace NzbDrone.Core.Test.OrganizerTests.FileNameBuilderTests
     {
         private Artist _artist;
         private Album _album;
+        private Release _release;
         private Track _track1;
         private TrackFile _trackFile;
         private NamingConfig _namingConfig;
@@ -30,11 +31,18 @@ namespace NzbDrone.Core.Test.OrganizerTests.FileNameBuilderTests
                     .With(s => s.Name = "Linkin Park")
                     .Build();
 
+            _release = Builder<Release>
+                .CreateNew()
+                .With(s => s.Media = new List<Medium> { new Medium { Number = 1 } })
+                .Build();
+
+
             _album = Builder<Album>
                     .CreateNew()
                     .With(s => s.Title = "Hybrid Theory")
                     .With(s => s.AlbumType = "Album")
                     .With(s => s.Disambiguation = "The Best Album")
+                    .With(s => s.SelectedRelease = _release)
                     .Build();
 
 
@@ -353,7 +361,7 @@ namespace NzbDrone.Core.Test.OrganizerTests.FileNameBuilderTests
                             .With(e => e.AbsoluteTrackNumber = 6)
                             .Build();
 
-            Subject.BuildTrackFileName(new List<Track> { track }, new Artist { Name = "In The Woods." }, new Album { Title = "30 Rock" }, _trackFile)
+            Subject.BuildTrackFileName(new List<Track> { track }, new Artist { Name = "In The Woods." }, new Album { Title = "30 Rock", SelectedRelease = _release }, _trackFile)
                    .Should().Be("In.The.Woods.06.Part.1");
         }
 
@@ -367,7 +375,7 @@ namespace NzbDrone.Core.Test.OrganizerTests.FileNameBuilderTests
                             .With(e => e.AbsoluteTrackNumber = 6)
                             .Build();
 
-            Subject.BuildTrackFileName(new List<Track> { track }, new Artist { Name = "In The Woods..." }, new Album { Title = "30 Rock" }, _trackFile)
+            Subject.BuildTrackFileName(new List<Track> { track }, new Artist { Name = "In The Woods..." }, new Album { Title = "30 Rock", SelectedRelease = _release }, _trackFile)
                    .Should().Be("In.The.Woods.06.Part.1");
         }
 
