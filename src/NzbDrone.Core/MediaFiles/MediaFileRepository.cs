@@ -54,16 +54,18 @@ namespace NzbDrone.Core.MediaFiles
         
         public List<TrackFile> GetFilesWithRelativePath(int artistId, string relativePath)
         {
+            var mapper = DataMapper;
+            mapper.AddParameter("artistId", artistId);
+            mapper.AddParameter("relativePath", relativePath);
             string query = string.Format("SELECT TrackFile.* " +
                                          "FROM Artist " +
                                          "JOIN ReleaseGroup ON ReleaseGroup.ArtistMetadataId = Artist.ArtistMetadataId " +
                                          "JOIN Track ON Track.ReleaseId == ReleaseGroup.SelectedReleaseId " +
                                          "JOIN TrackFile ON TrackFile.Id == Track.TrackFileId " +
-                                         "WHERE Artist.Id == {0} " +
-                                         "AND TrackFile.RelativePath == '{1}'",
-                                         artistId, relativePath);
+                                         "WHERE Artist.Id == @artistId " +
+                                         "AND TrackFile.RelativePath == @relativePath");
 
-            return Query.QueryText(query).ToList();
+            return mapper.Query<TrackFile>(query);
         }
 
     }
