@@ -328,6 +328,25 @@ namespace NzbDrone.Core.Music
         {
             double fuzzThreshold = 0.7;
             double fuzzGap = 0.4;
+            
+            var album = FindByTitleInexact(artistMetadataId, title, fuzzThreshold, fuzzGap);
+
+            if (album == null)
+            {
+                var titleNoDisambiguation = Parser.RemoveDisambiguation(title);
+                album = FindByTitleInexact(artistMetadataId, titleNoDisambiguation, fuzzThreshold, fuzzGap);
+            }
+            
+            if (album == null)
+            {
+                var titleNoBrackets = Parser.RemoveBracketAndContents(titleNoDisambiguation);
+                album = FindByTitleInexact(artistMetadataId, titleNoBrackets, fuzzThreshold, fuzzGap);
+            }
+
+        }
+
+        private Album FindByTitleInexact(int artistMetadataId, string title, double threshold, double gap)
+        {
             var cleanTitle = Parser.Parser.CleanArtistName(title);
 
             if (string.IsNullOrEmpty(cleanTitle))
@@ -350,8 +369,8 @@ namespace NzbDrone.Core.Music
                           cleanTitle,
                           string.Join("\n", sortedAlbums.Select(x => $"{x.Album.CleanTitle}: {x.MatchProb}")));
 
-            if (sortedAlbums[0].MatchProb > fuzzThreshold
-                && (sortedAlbums.Count == 1 || sortedAlbums[0].MatchProb - sortedAlbums[1].MatchProb > fuzzGap))
+            if (sortedAlbums[0].MatchProb > threshold
+                && (sortedAlbums.Count == 1 || sortedAlbums[0].MatchProb - sortedAlbums[1].MatchProb > gap))
                 return sortedAlbums[0].Album;
 
             return null;
