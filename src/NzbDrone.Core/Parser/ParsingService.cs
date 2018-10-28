@@ -298,6 +298,13 @@ namespace NzbDrone.Core.Parser
 
             if (album == null)
             {
+                _logger.Debug("Trying inexact album match without brackets for {0}", parsedTrackInfo);
+                var noBracketsAlbumTitle = Parser.RemoveBracketAndContents(cleanAlbumTitle);
+                album = _albumService.FindByTitleInexact(artist.ArtistMetadataId, noBracketsAlbumTitle);
+            }
+
+            if (album == null)
+            {
                 _logger.Debug("Parsed album title not found in Db for {0}", parsedTrackInfo);
                 return null;
             }

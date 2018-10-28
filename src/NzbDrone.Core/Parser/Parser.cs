@@ -208,6 +208,8 @@ namespace NzbDrone.Core.Parser
             new Regex(@"(\[|\()*\b((featuring|feat.|feat|ft|ft.)\s{1}){1}\s*.*(\]|\))*", RegexOptions.IgnoreCase | RegexOptions.Compiled),
             new Regex(@"(?:\(|\[)(?:[^\(\[]*)(?:version|limited|deluxe|single|clean|album|special|bonus|promo)(?:[^\)\]]*)(?:\)|\])", RegexOptions.IgnoreCase | RegexOptions.Compiled)
         };
+
+        private static readonly Regex BracketRegex = new Regex(@"\(.*\)");
         
         public static ParsedTrackInfo ParseMusicPath(string path)
         {
@@ -599,6 +601,11 @@ namespace NzbDrone.Core.Parser
         public static string CleanAlbumTitle(string album)
         {
             return CommonTagRegex[1].Replace(album, string.Empty).Trim();
+        }
+
+        public static string RemoveBracketAndContents(string album)
+        {
+            return BracketRegex.Replace(album, string.Empty).Trim();
         }
 
         public static string CleanTrackTitle(string title)
