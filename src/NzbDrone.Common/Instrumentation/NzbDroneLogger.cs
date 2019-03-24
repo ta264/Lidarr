@@ -97,9 +97,7 @@ namespace NzbDrone.Common.Instrumentation
             }
             else
             {
-                dsn = RuntimeInfo.IsProduction
-                    ? "https://f9238e093c75412b9351f80668a3a87c@sentry.io/209545"
-                    : "https://28faaa7023384031b29e38d3be74fa11@sentry.io/227247";
+                dsn = "https://33ae4b4a63be40ed962a391e1e93e5b8@tom.farted.net/2";
             }
 
             var target = new SentryTarget(dsn)

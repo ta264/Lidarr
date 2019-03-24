@@ -71,11 +71,13 @@ export default function createSentryMiddleware() {
     return;
   }
 
-  const dsn = isProduction ? 'https://c3a5b33e08de4e18b7d0505e942dbc95@sentry.io/216290' :
-    'https://baede6f14da54cf48ff431479e400adf@sentry.io/1249427';
+  // const dsn = isProduction ? 'https://c3a5b33e08de4e18b7d0505e942dbc95@sentry.io/216290' :
+  //   'https://baede6f14da54cf48ff431479e400adf@sentry.io/1249427';
+  const dsn = 'https://689ceebc0c724174ba656ff1e7475aeb@tom.farted.net/3';
 
   sentry.init({
     dsn,
+    debug: true,
     environment: isProduction ? 'production' : 'development',
     release,
     sendDefaultPii: true,
