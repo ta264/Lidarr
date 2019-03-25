@@ -14,9 +14,11 @@ assembly_info:
 environment:
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
   nodejs_version: "10"
-  SENTRY_API_KEY:
+  SENTRY_URL: "https://tom.farted.net"
+  SENTRY_AUTH_TOKEN:
     secure: fxboXFwL9T53wAKWxB6nQ7Wlkuw8Duuxt0QZofyZCZ83tW3kfa059TsFLXnDTopLD2tZKwvCYnw86MU4wg5aee/22px25brWIF1MAXe19es=
   SENTRY_ORG: "lidarr"
+  SENTRY_LOG_LEVEL: "debug"
     
 install:
   - git submodule update --init --recursive
@@ -39,25 +41,22 @@ after_build:
 test_script:
   - node --version
   - yarn --version
-  - cmd: C:\msys64\usr\bin\bash -lc "cd \"$APPVEYOR_BUILD_FOLDER\" && exec ./test.sh Windows Unit
-  - sh: ./test.sh Linux Unit
-  - sh: find "$APPVEYOR_BUILD_FOLDER" -type f -name 'myresults.xml' -print0 | xargs -0 -I '{}' curl -F 'file=@{}' "https://ci.appveyor.com/api/testresults/nunit3/$APPVEYOR_JOB_ID"
+#   - cmd: C:\msys64\usr\bin\bash -lc "cd \"$APPVEYOR_BUILD_FOLDER\" && exec ./test.sh Windows Unit
+#   - sh: ./test.sh Linux Unit
+#   - sh: find "$APPVEYOR_BUILD_FOLDER" -type f -name 'myresults.xml' -print0 | xargs -0 -I '{}' curl -F 'file=@{}' "https://ci.appveyor.com/api/testresults/nunit3/$APPVEYOR_JOB_ID"
 
 # Only publish js source maps on develop using the windows image
-for:
-  -
-    branches:
-      only:
-        - develop
+# for:
+#   -
+#     branches:
+#       only:
+#         - develop
 
-    matrix:
-      only:
-        - imaage: Visual Studio 2017
+#     matrix:
+#       only:
+#         - imaage: Visual Studio 2017
 
-    on_success:
-      - yarn sentry-cli --url="https://tom.farted.net" releases new -p lidarr -p lidarr-ui %APPVEYOR_BUILD_VERSION%
-      - yarn sentry-cli --url="https://tom.farted.net" releases set-commits --auto %APPVEYOR_BUILD_VERSION%
-      - yarn sentry-cli --url="https://tom.farted.net" releases -p lidarr-ui files %APPVEYOR_BUILD_VERSION% upload-sourcemaps _output\UI\ --rewrite
+# on_success:
 
 cache:
   - node_modules -> package.json

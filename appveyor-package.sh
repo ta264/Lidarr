@@ -26,4 +26,15 @@ PublishArtifacts()
     fi
 }
 
+PublishSourceMaps()
+{
+    if [ "${CI_WINDOWS}" = "True" ]; then
+        echo "Uploading source maps to sentry"
+        yarn sentry-cli releases new -p lidarr -p lidarr-ui "${APPVEYOR_BUILD_VERSION}-debug"
+        yarn sentry-cli releases -p lidarr-ui files "${APPVEYOR_BUILD_VERSION}-debug" upload-sourcemaps _output/UI/ --rewrite
+        yarn sentry-cli releases set-commits --auto "${APPVEYOR_BUILD_VERSION}-debug"
+    fi
+}
+
 PublishArtifacts
+PublishSourceMaps
